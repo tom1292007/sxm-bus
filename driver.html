@@ -1,0 +1,1769 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        name="theme-color"
+        content="#111827"
+    >
+
+    <title>SXM Bus Driver</title>
+
+
+    <!-- =====================================================
+         SUPABASE
+    ====================================================== -->
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+
+    <!-- =====================================================
+         STYLING
+    ====================================================== -->
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+
+        body {
+
+            margin: 0;
+
+            padding: 20px;
+
+            font-family:
+                Arial,
+                Helvetica,
+                sans-serif;
+
+            background: #f3f4f6;
+
+            color: #111827;
+        }
+
+
+        .container {
+
+            max-width: 480px;
+
+            margin: auto;
+
+            background: white;
+
+            padding: 24px;
+
+            border-radius: 16px;
+
+            box-shadow:
+                0 4px 20px
+                rgba(0,0,0,0.10);
+        }
+
+
+        h1 {
+
+            text-align: center;
+
+            margin: 0;
+
+            font-size: 28px;
+        }
+
+
+        .subtitle {
+
+            text-align: center;
+
+            margin-top: 6px;
+
+            color: #6b7280;
+
+            font-size: 14px;
+
+            margin-bottom: 25px;
+        }
+
+
+        label {
+
+            display: block;
+
+            margin-top: 16px;
+
+            font-weight: bold;
+
+            font-size: 14px;
+        }
+
+
+        input,
+        select,
+        button {
+
+            width: 100%;
+
+            padding: 15px;
+
+            margin-top: 8px;
+
+            border-radius: 9px;
+
+            font-size: 16px;
+
+            font-family: inherit;
+
+            box-sizing: border-box;
+        }
+
+
+        input,
+        select {
+
+            border: 1px solid #d1d5db;
+
+            background: white;
+        }
+
+
+        button {
+
+            border: none;
+
+            font-weight: bold;
+
+            cursor: pointer;
+        }
+
+
+        #startButton {
+
+            background: #16a34a;
+
+            color: white;
+
+            margin-top: 25px;
+        }
+
+
+        #stopButton {
+
+            background: #dc2626;
+
+            color: white;
+        }
+
+
+        button:disabled {
+
+            opacity: 0.5;
+
+            cursor: not-allowed;
+        }
+
+
+        .status {
+
+            margin-top: 18px;
+
+            padding: 15px;
+
+            border-radius: 10px;
+
+            background: #f3f4f6;
+
+            text-align: center;
+
+            font-weight: bold;
+
+            line-height: 1.5;
+        }
+
+
+        .status-active {
+
+            background: #dcfce7;
+
+            color: #166534;
+        }
+
+
+        .status-error {
+
+            background: #fee2e2;
+
+            color: #991b1b;
+        }
+
+
+        .status-warning {
+
+            background: #fef3c7;
+
+            color: #92400e;
+        }
+
+
+        .data-row {
+
+            display: flex;
+
+            justify-content: space-between;
+
+            padding: 10px 0;
+
+            border-bottom: 1px solid #e5e7eb;
+
+            font-size: 14px;
+        }
+
+
+        .data-label {
+
+            color: #6b7280;
+        }
+
+
+        .data-value {
+
+            font-weight: bold;
+
+            text-align: right;
+
+            max-width: 60%;
+        }
+
+
+        .gps-section {
+
+            margin-top: 25px;
+        }
+
+
+        .route-info {
+
+            margin-top: 10px;
+
+            padding: 12px;
+
+            background: #f9fafb;
+
+            border-radius: 9px;
+
+            font-size: 13px;
+
+            line-height: 1.5;
+        }
+
+
+        .small {
+
+            margin-top: 15px;
+
+            color: #6b7280;
+
+            font-size: 11px;
+
+            line-height: 1.5;
+
+            text-align: center;
+        }
+
+
+        .hidden {
+
+            display: none;
+        }
+
+    </style>
+
+</head>
+
+
+
+<body>
+
+
+<div class="container">
+
+
+    <!-- =====================================================
+         TITLE
+    ====================================================== -->
+
+
+    <h1>
+        🚌 SXM BUS
+    </h1>
+
+
+    <div class="subtitle">
+        Driver GPS Tracking
+    </div>
+
+
+
+    <!-- =====================================================
+         BUS ID
+    ====================================================== -->
+
+
+    <label for="busId">
+        Bus ID
+    </label>
+
+
+    <input
+        id="busId"
+        type="text"
+        value="BUS_01"
+        placeholder="Example: BUS_01"
+        autocomplete="off"
+    >
+
+
+
+    <!-- =====================================================
+         ROUTE
+    ====================================================== -->
+
+
+    <label for="routeSelect">
+        Route
+    </label>
+
+
+    <select
+        id="routeSelect"
+    >
+
+        <option value="">
+            Loading routes...
+        </option>
+
+    </select>
+
+
+
+    <div
+        id="routeInfo"
+        class="route-info hidden"
+    >
+
+    </div>
+
+
+
+    <!-- =====================================================
+         BUTTONS
+    ====================================================== -->
+
+
+    <button
+        id="startButton"
+    >
+
+        🟢 START TRACKING
+
+    </button>
+
+
+    <button
+        id="stopButton"
+        disabled
+    >
+
+        🔴 STOP TRACKING
+
+    </button>
+
+
+
+    <!-- =====================================================
+         STATUS
+    ====================================================== -->
+
+
+    <div
+        id="status"
+        class="status"
+    >
+
+        Waiting to start...
+
+    </div>
+
+
+
+    <!-- =====================================================
+         GPS DATA
+    ====================================================== -->
+
+
+    <div class="gps-section">
+
+
+        <div class="data-row">
+
+            <span class="data-label">
+                Latitude
+            </span>
+
+            <span
+                class="data-value"
+                id="latitude"
+            >
+                --
+            </span>
+
+        </div>
+
+
+        <div class="data-row">
+
+            <span class="data-label">
+                Longitude
+            </span>
+
+            <span
+                class="data-value"
+                id="longitude"
+            >
+                --
+            </span>
+
+        </div>
+
+
+        <div class="data-row">
+
+            <span class="data-label">
+                Speed
+            </span>
+
+            <span
+                class="data-value"
+                id="speed"
+            >
+                --
+            </span>
+
+        </div>
+
+
+        <div class="data-row">
+
+            <span class="data-label">
+                Heading
+            </span>
+
+            <span
+                class="data-value"
+                id="heading"
+            >
+                --
+            </span>
+
+        </div>
+
+
+        <div class="data-row">
+
+            <span class="data-label">
+                GPS Accuracy
+            </span>
+
+            <span
+                class="data-value"
+                id="accuracy"
+            >
+                --
+            </span>
+
+        </div>
+
+
+        <div class="data-row">
+
+            <span class="data-label">
+                Last Upload
+            </span>
+
+            <span
+                class="data-value"
+                id="lastUpload"
+            >
+                --
+            </span>
+
+        </div>
+
+
+    </div>
+
+
+
+    <div class="small">
+
+        Keep this page open while driving.
+        Location permission is required.
+        The prototype sends GPS approximately every
+        5 seconds.
+
+    </div>
+
+
+</div>
+
+
+
+<script>
+
+
+// ==========================================================
+// SUPABASE CONFIGURATION
+// ==========================================================
+
+
+const SUPABASE_URL =
+    "https://enqyrmpdaxuelqlgevnl.supabase.co";
+
+
+const SUPABASE_KEY =
+    "sb_publishable_J_P6bfidx389dnZJc3H43A_vK3ccYnW";
+
+
+const supabaseClient =
+    window.supabase.createClient(
+
+        SUPABASE_URL,
+
+        SUPABASE_KEY
+
+    );
+
+
+
+// ==========================================================
+// SETTINGS
+// ==========================================================
+
+
+const UPDATE_INTERVAL =
+    5000;
+
+
+// GPS readings worse than this will not be uploaded.
+// We will still display them on screen.
+
+const MAX_UPLOAD_ACCURACY_METERS =
+    100;
+
+
+
+// ==========================================================
+// STATE
+// ==========================================================
+
+
+let watchId =
+    null;
+
+
+let lastUploadTime =
+    0;
+
+
+let isTracking =
+    false;
+
+
+let currentPosition =
+    null;
+
+
+let currentRoute =
+    null;
+
+
+let routes =
+    [];
+
+
+
+// ==========================================================
+// ELEMENTS
+// ==========================================================
+
+
+const busIdInput =
+    document.getElementById(
+        "busId"
+    );
+
+
+const routeSelect =
+    document.getElementById(
+        "routeSelect"
+    );
+
+
+const routeInfo =
+    document.getElementById(
+        "routeInfo"
+    );
+
+
+const startButton =
+    document.getElementById(
+        "startButton"
+    );
+
+
+const stopButton =
+    document.getElementById(
+        "stopButton"
+    );
+
+
+const statusElement =
+    document.getElementById(
+        "status"
+    );
+
+
+const latitudeElement =
+    document.getElementById(
+        "latitude"
+    );
+
+
+const longitudeElement =
+    document.getElementById(
+        "longitude"
+    );
+
+
+const speedElement =
+    document.getElementById(
+        "speed"
+    );
+
+
+const headingElement =
+    document.getElementById(
+        "heading"
+    );
+
+
+const accuracyElement =
+    document.getElementById(
+        "accuracy"
+    );
+
+
+const lastUploadElement =
+    document.getElementById(
+        "lastUpload"
+    );
+
+
+
+// ==========================================================
+// LOAD ROUTES FROM SUPABASE
+// ==========================================================
+
+
+async function loadRoutes() {
+
+
+    const {
+        data,
+        error
+    } = await supabaseClient
+
+        .from("routes")
+
+        .select(
+            "id, route_name, direction, active, road_distance_meters"
+        )
+
+        .eq(
+            "active",
+            true
+        )
+
+        .order(
+            "route_name",
+            {
+                ascending: true
+            }
+        );
+
+
+    if (error) {
+
+        console.error(
+            "Route loading error:",
+            error
+        );
+
+
+        setStatus(
+            "❌ Could not load routes.<br>" +
+            escapeHtml(
+                error.message
+            ),
+            "error"
+        );
+
+
+        return;
+
+    }
+
+
+    routes =
+        data || [];
+
+
+    routeSelect.innerHTML = "";
+
+
+    const defaultOption =
+        document.createElement(
+            "option"
+        );
+
+
+    defaultOption.value =
+        "";
+
+
+    defaultOption.textContent =
+        "Select a route";
+
+
+    routeSelect.appendChild(
+        defaultOption
+    );
+
+
+    routes.forEach(
+        route => {
+
+
+            const option =
+                document.createElement(
+                    "option"
+                );
+
+
+            option.value =
+                route.id;
+
+
+            option.textContent =
+                `${route.route_name} — ${route.direction}`;
+
+
+            routeSelect.appendChild(
+                option
+            );
+
+        }
+    );
+
+}
+
+
+
+// ==========================================================
+// ROUTE SELECTION
+// ==========================================================
+
+
+routeSelect.addEventListener(
+    "change",
+    () => {
+
+
+        const routeId =
+            routeSelect.value;
+
+
+        currentRoute =
+            routes.find(
+                route =>
+                    String(
+                        route.id
+                    ) ===
+                    String(
+                        routeId
+                    )
+            ) || null;
+
+
+        if (!currentRoute) {
+
+            routeInfo.classList.add(
+                "hidden"
+            );
+
+            return;
+
+        }
+
+
+        routeInfo.classList.remove(
+            "hidden"
+        );
+
+
+        const distance =
+            currentRoute.road_distance_meters;
+
+
+        routeInfo.innerHTML = `
+
+            <strong>
+                ${escapeHtml(
+                    currentRoute.route_name
+                )}
+            </strong>
+
+            <br>
+
+            ${escapeHtml(
+                currentRoute.direction
+            )}
+
+            ${
+                distance
+                    ? `<br>
+                       Approx. route distance:
+                       ${(distance / 1000).toFixed(1)}
+                       km`
+                    : ""
+            }
+
+        `;
+
+    }
+);
+
+
+
+// ==========================================================
+// START TRACKING
+// ==========================================================
+
+
+startButton.addEventListener(
+    "click",
+    startTracking
+);
+
+
+async function startTracking() {
+
+
+    if (
+        isTracking
+    ) {
+
+        return;
+
+    }
+
+
+    const busId =
+        busIdInput.value.trim();
+
+
+    const routeId =
+        routeSelect.value;
+
+
+    if (!busId) {
+
+        setStatus(
+            "❌ Enter a Bus ID first.",
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    if (!routeId) {
+
+        setStatus(
+            "❌ Select a route first.",
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    if (
+        !navigator.geolocation
+    ) {
+
+        setStatus(
+            "❌ GPS is not available on this device.",
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    // Prevent two tracking sessions
+    // from existing in this page.
+
+    if (
+        watchId !== null
+    ) {
+
+        navigator.geolocation.clearWatch(
+            watchId
+        );
+
+        watchId =
+            null;
+
+    }
+
+
+    isTracking =
+        true;
+
+
+    lastUploadTime =
+        0;
+
+
+    startButton.disabled =
+        true;
+
+
+    stopButton.disabled =
+        false;
+
+
+    busIdInput.disabled =
+        true;
+
+
+    routeSelect.disabled =
+        true;
+
+
+    setStatus(
+        "📍 Requesting GPS permission...",
+        "warning"
+    );
+
+
+    // Start GPS watcher
+
+    watchId =
+        navigator.geolocation.watchPosition(
+
+            handlePosition,
+
+            handleGpsError,
+
+            {
+
+                enableHighAccuracy:
+                    true,
+
+                maximumAge:
+                    2000,
+
+                timeout:
+                    15000
+
+            }
+
+        );
+
+
+    // Tell database the bus is active
+
+    await setBusActive(
+        true
+    );
+
+}
+
+
+
+// ==========================================================
+// HANDLE GPS POSITION
+// ==========================================================
+
+
+async function handlePosition(
+    position
+) {
+
+
+    currentPosition =
+        position;
+
+
+    const coords =
+        position.coords;
+
+
+    const latitude =
+        coords.latitude;
+
+
+    const longitude =
+        coords.longitude;
+
+
+    const speedMs =
+        coords.speed;
+
+
+    const heading =
+        coords.heading;
+
+
+    const accuracy =
+        coords.accuracy;
+
+
+    // ======================================================
+    // DISPLAY GPS INFORMATION
+    // ======================================================
+
+
+    latitudeElement.innerText =
+        latitude.toFixed(
+            6
+        );
+
+
+    longitudeElement.innerText =
+        longitude.toFixed(
+            6
+        );
+
+
+    if (
+        speedMs !== null &&
+        Number.isFinite(
+            speedMs
+        )
+    ) {
+
+        speedElement.innerText =
+            (
+                speedMs * 3.6
+            ).toFixed(
+                1
+            ) +
+            " km/h";
+
+    } else {
+
+        speedElement.innerText =
+            "0 km/h";
+
+    }
+
+
+    if (
+        heading !== null &&
+        Number.isFinite(
+            heading
+        )
+    ) {
+
+        headingElement.innerText =
+            heading.toFixed(
+                0
+            ) +
+            "°";
+
+    } else {
+
+        headingElement.innerText =
+            "--";
+
+    }
+
+
+    if (
+        Number.isFinite(
+            accuracy
+        )
+    ) {
+
+        accuracyElement.innerText =
+            Math.round(
+                accuracy
+            ) +
+            " m";
+
+    } else {
+
+        accuracyElement.innerText =
+            "--";
+
+    }
+
+
+    // ======================================================
+    // DON'T UPLOAD EVERY GPS CALLBACK
+    // ======================================================
+
+
+    const now =
+        Date.now();
+
+
+    if (
+        now -
+        lastUploadTime
+        <
+        UPDATE_INTERVAL
+    ) {
+
+        return;
+
+    }
+
+
+    // ======================================================
+    // IGNORE VERY POOR GPS
+    // ======================================================
+
+
+    if (
+        Number.isFinite(
+            accuracy
+        ) &&
+        accuracy >
+        MAX_UPLOAD_ACCURACY_METERS
+    ) {
+
+        setStatus(
+            `⚠️ GPS accuracy is poor (${Math.round(
+                accuracy
+            )} m). Waiting for a better reading...`,
+            "warning"
+        );
+
+        return;
+
+    }
+
+
+    lastUploadTime =
+        now;
+
+
+    await uploadLocation(
+        position
+    );
+
+}
+
+
+
+// ==========================================================
+// UPLOAD LOCATION
+// ==========================================================
+
+
+async function uploadLocation(
+    position
+) {
+
+
+    const coords =
+        position.coords;
+
+
+    const busId =
+        busIdInput.value.trim();
+
+
+    const routeId =
+        Number(
+            routeSelect.value
+        );
+
+
+    const speed =
+        (
+            coords.speed !== null &&
+            Number.isFinite(
+                coords.speed
+            )
+        )
+
+            ? coords.speed * 3.6
+
+            : 0;
+
+
+    const heading =
+        (
+            coords.heading !== null &&
+            Number.isFinite(
+                coords.heading
+            )
+        )
+
+            ? coords.heading
+
+            : 0;
+
+
+    const accuracy =
+        Number.isFinite(
+            coords.accuracy
+        )
+
+            ? coords.accuracy
+
+            : null;
+
+
+    const nowIso =
+        new Date()
+            .toISOString();
+
+
+    const locationData = {
+
+        bus_id:
+            busId,
+
+        latitude:
+            coords.latitude,
+
+        longitude:
+            coords.longitude,
+
+        speed:
+            speed,
+
+        heading:
+            heading,
+
+        accuracy_meters:
+            accuracy,
+
+        recorded_at:
+            nowIso,
+
+        last_seen:
+            nowIso,
+
+        route_id:
+            routeId,
+
+        route:
+            currentRoute
+                ? `${currentRoute.route_name} — ${currentRoute.direction}`
+                : "",
+
+        is_active:
+            true
+
+    };
+
+
+    const {
+        error
+    } =
+        await supabaseClient
+
+            .from(
+                "bus_locations"
+            )
+
+            .upsert(
+
+                locationData,
+
+                {
+                    onConflict:
+                        "bus_id"
+                }
+
+            );
+
+
+    if (error) {
+
+        console.error(
+            "Supabase upload error:",
+            error
+        );
+
+
+        setStatus(
+            "❌ GPS upload failed:<br>" +
+            escapeHtml(
+                error.message
+            ),
+            "error"
+        );
+
+
+        return;
+
+    }
+
+
+    lastUploadElement.innerText =
+        new Date()
+            .toLocaleTimeString();
+
+
+    setStatus(
+        "🟢 GPS ACTIVE",
+        "active"
+    );
+
+}
+
+
+
+// ==========================================================
+// SET BUS ACTIVE / INACTIVE
+// ==========================================================
+
+
+async function setBusActive(
+    active
+) {
+
+
+    const busId =
+        busIdInput.value.trim();
+
+
+    const routeId =
+        Number(
+            routeSelect.value
+        );
+
+
+    if (!busId) {
+
+        return;
+
+    }
+
+
+    const now =
+        new Date()
+            .toISOString();
+
+
+    const updateData = {
+
+        bus_id:
+            busId,
+
+        route_id:
+            routeId,
+
+        route:
+            currentRoute
+                ? `${currentRoute.route_name} — ${currentRoute.direction}`
+                : "",
+
+        is_active:
+            active,
+
+        last_seen:
+            active
+                ? now
+                : null,
+
+        trip_started_at:
+            active
+                ? now
+                : undefined,
+
+        trip_ended_at:
+            active
+                ? undefined
+                : now
+
+    };
+
+
+    // Remove undefined properties
+
+    Object.keys(
+        updateData
+    ).forEach(
+        key => {
+
+            if (
+                updateData[key] ===
+                undefined
+            ) {
+
+                delete updateData[key];
+
+            }
+
+        }
+    );
+
+
+    const {
+        error
+    } =
+        await supabaseClient
+
+            .from(
+                "bus_locations"
+            )
+
+            .upsert(
+
+                updateData,
+
+                {
+                    onConflict:
+                        "bus_id"
+                }
+
+            );
+
+
+    if (error) {
+
+        console.error(
+            "Active status error:",
+            error
+        );
+
+        setStatus(
+            "❌ Could not update bus status:<br>" +
+            escapeHtml(
+                error.message
+            ),
+            "error"
+        );
+
+    }
+
+}
+
+
+
+// ==========================================================
+// STOP TRACKING
+// ==========================================================
+
+
+stopButton.addEventListener(
+    "click",
+    stopTracking
+);
+
+
+async function stopTracking() {
+
+
+    if (
+        !isTracking
+    ) {
+
+        return;
+
+    }
+
+
+    isTracking =
+        false;
+
+
+    // Stop GPS watcher
+
+    if (
+        watchId !== null
+    ) {
+
+        navigator.geolocation.clearWatch(
+            watchId
+        );
+
+        watchId =
+            null;
+
+    }
+
+
+    // Tell database bus is inactive
+
+    await setBusActive(
+        false
+    );
+
+
+    startButton.disabled =
+        false;
+
+
+    stopButton.disabled =
+        true;
+
+
+    busIdInput.disabled =
+        false;
+
+
+    routeSelect.disabled =
+        false;
+
+
+    setStatus(
+        "🔴 Tracking stopped.",
+        "warning"
+    );
+
+}
+
+
+
+// ==========================================================
+// GPS ERROR
+// ==========================================================
+
+
+function handleGpsError(
+    error
+) {
+
+
+    console.error(
+        "GPS error:",
+        error
+    );
+
+
+    let message =
+        "GPS error.";
+
+
+    if (
+        error.code ===
+        1
+    ) {
+
+        message =
+            "Location permission was denied.";
+
+    }
+
+
+    else if (
+        error.code ===
+        2
+    ) {
+
+        message =
+            "Your device could not determine your location.";
+
+    }
+
+
+    else if (
+        error.code ===
+        3
+    ) {
+
+        message =
+            "GPS request timed out.";
+
+    }
+
+
+    setStatus(
+        "❌ " +
+        message,
+        "error"
+    );
+
+}
+
+
+
+// ==========================================================
+// STATUS HELPER
+// ==========================================================
+
+
+function setStatus(
+    message,
+    type
+) {
+
+
+    statusElement.innerHTML =
+        message;
+
+
+    statusElement.className =
+        "status";
+
+
+    if (
+        type ===
+        "active"
+    ) {
+
+        statusElement.classList.add(
+            "status-active"
+        );
+
+    }
+
+
+    else if (
+        type ===
+        "error"
+    ) {
+
+        statusElement.classList.add(
+            "status-error"
+        );
+
+    }
+
+
+    else if (
+        type ===
+        "warning"
+    ) {
+
+        statusElement.classList.add(
+            "status-warning"
+        );
+
+    }
+
+}
+
+
+
+// ==========================================================
+// HTML ESCAPE
+// ==========================================================
+
+
+function escapeHtml(
+    value
+) {
+
+
+    if (
+        value === null ||
+        value === undefined
+    ) {
+
+        return "";
+
+    }
+
+
+    return String(value)
+
+        .replace(
+            /&/g,
+            "&amp;"
+        )
+
+        .replace(
+            /</g,
+            "&lt;"
+        )
+
+        .replace(
+            />/g,
+            "&gt;"
+        )
+
+        .replace(
+            /"/g,
+            "&quot;"
+        )
+
+        .replace(
+            /'/g,
+            "&#039;"
+        );
+
+}
+
+
+
+// ==========================================================
+// INITIALIZE
+// ==========================================================
+
+
+loadRoutes();
+
+
+
+// ==========================================================
+// SAFETY:
+// STOP TRACKING WHEN PAGE IS UNLOADED
+// ==========================================================
+
+
+window.addEventListener(
+    "beforeunload",
+    () => {
+
+        if (
+            watchId !== null
+        ) {
+
+            navigator.geolocation.clearWatch(
+                watchId
+            );
+
+        }
+
+    }
+);
+
+</script>
+
+
+</body>
+
+</html>
