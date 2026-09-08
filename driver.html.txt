@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>SXM Bus Driver</title>
+
+    <!-- Supabase JavaScript library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 450px;
+            margin: auto;
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        label {
+            display: block;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 14px;
+            margin-top: 8px;
+            box-sizing: border-box;
+            font-size: 16px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+        }
+
+        button {
+            cursor: pointer;
+            border: none;
+            margin-top: 20px;
+        }
+
+        #startButton {
+            background: #2e7d32;
+            color: white;
+        }
+
+        #stopButton {
+            background: #c62828;
+            color: white;
+        }
+
+        #status {
+            margin-top: 20px;
+            padding: 15px;
+            background: #eee;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .location {
+            margin-top: 15px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>🚌 SXM BUS</h1>
+
+    <label for="busId">Bus ID</label>
+
+    <input
+        type="text"
+        id="busId"
+        value="BUS-01"
+        placeholder="Example: BUS-01"
+    >
+
+    <label for="route">Route</label>
+
+    <select id="route">
+        <option value="Philipsburg → Maho">
+            Philipsburg → Maho
+        </option>
+
+        <option value="Maho → Philipsburg">
+            Maho → Philipsburg
+        </option>
+
+        <option value="Philipsburg → Marigot">
+            Philipsburg → Marigot
+        </option>
+
+        <option value="Marigot → Philipsburg">
+            Marigot → Philipsburg
+        </option>
+    </select>
+
+    <button id="startButton">
+        🟢 START TRACKING
+    </button>
+
+    <button id="stopButton">
+        🔴 STOP TRACKING
+    </button>
+
+    <div id="status">
+        Waiting to start...
+    </div>
+
+    <div class="location">
+        Latitude: <span id="latitude">--</span>
+    </div>
+
+    <div class="location">
+        Longitude: <span id="longitude">--</span>
+    </div>
+
+    <div class="location">
+        Speed: <span id="speed">--</span>
+    </div>
+
+    <div class="location">
+        Heading: <span id="heading">--</span>
+    </div>
+
+    <div class="location">
+        Last update: <span id="lastUpdate">--</span>
+    </div>
+
+</div>
+
+<script>
+
+    // ============================================================
+    // SUPABASE SETTINGS
+    // ============================================================
+
+    const SUPABASE_URL = "https://enqyrmpdaxuelqlgevnl.supabase.co/rest/v1/";
+
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVucXlybXBkYXh1ZWxxbGdldm5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4ODk5MDEsImV4cCI6MjEwNDQ2NTkwMX0.YMaqjaC_S7t5fTIDl-JCPmXzqTeisQWXEHIenaUNjIo";
+
+    const supabaseClient = window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_KEY
+    );
+
+
+    // ============================================================
+    // VARIABLES
+    // ============================================================
+
+    let watchId = null;
+
+    let lastUploadTime = 0;
+
+    const UPDATE_INTERVAL = 5000; // 5 seconds
+
+
+    // ============================================================
+    // PAGE ELEMENTS
+    // ============================================================
+
+    const startButton =
+        document.getElementById("startButton");
+
+    const stopButton =
+        document.getElementById("stopButton");
+
+    const statusElement =
+        document.getElementById("status");
+
+    const latitudeElement =
+        document.getElementById("latitude");
+
+    const longitudeElement =
+        document.getElementById("longitude");
+
+    const speedElement =
+        document.getElementById("speed");
+
+    const headingElement =
+        document.getElementById("heading");
+
+    const lastUpdateElement =
+        document.getElementById("lastUpdate");
+
+
+    // ============================================================
+    // START TRACKING
+    // ============================================================
+
+    startButton.addEventListener("click", () => {
+
+        if (!navigator.geolocation) {
+
+            statusElement.innerText =
+                "GPS is not available on this device.";
+
+            return;
+        }
+
+        statusElement.innerText =
+            "Requesting GPS permission...";
+
+        watchId = navigator.geolocation.watchPosition(
+
+            handlePosition,
+
+            handleError,
+
+            {
+                enableHighAccuracy: true,
+                maximumAge: 2000,
+                timeout: 10000
+            }
+
+        );
+
+    });
+
+
+    // ============================================================
+    // GPS POSITION RECEIVED
+    // ============================================================
+
+    async function handlePosition(position) {
+
+        const now = Date.now();
+
+        const latitude =
+            position.coords.latitude;
+
+        const longitude =
+            position.coords.longitude;
+
+        const speed =
+            position.coords.speed;
+
+        const heading =
+            position.coords.heading;
+
+
+        // Display GPS information
+
+        latitudeElement.innerText =
+            latitude.toFixed(6);
+
+        longitudeElement.innerText =
+            longitude.toFixed(6);
+
+
+        if (speed !== null) {
+
+            speedElement.innerText =
+                (speed * 3.6).toFixed(1) + " km/h";
+
+        } else {
+
+            speedElement.innerText =
+                "0 km/h";
+
+        }
+
+
+        if (heading !== null) {
+
+            headingElement.innerText =
+                heading.toFixed(0) + "°";
+
+        } else {
+
+            headingElement.innerText =
+                "--";
+
+        }
+
+
+        // ========================================================
+        // ONLY UPLOAD EVERY 5 SECONDS
+        // ========================================================
+
+        if (
+            now - lastUploadTime <
+            UPDATE_INTERVAL
+        ) {
+
+            return;
+        }
+
+
+        lastUploadTime = now;
+
+
+        const busId =
+            document.getElementById("busId").value;
+
+        const route =
+            document.getElementById("route").value;
+
+
+        statusElement.innerText =
+            "📡 Sending location...";
+
+
+        // ========================================================
+        // SEND LOCATION TO SUPABASE
+        // ========================================================
+
+        const { data, error } =
+            await supabaseClient
+                .from("bus_locations")
+                .upsert(
+                    {
+                        bus_id: busId,
+
+                        latitude: latitude,
+
+                        longitude: longitude,
+
+                        speed:
+                            speed !== null
+                                ? speed
+                                : 0,
+
+                        heading:
+                            heading !== null
+                                ? heading
+                                : 0,
+
+                        recorded_at:
+                            new Date().toISOString(),
+
+                        route: route
+                    },
+
+                    {
+                        onConflict: "bus_id"
+                    }
+                );
+
+
+        if (error) {
+
+            console.error(error);
+
+            statusElement.innerText =
+                "❌ Error sending GPS: " +
+                error.message;
+
+            return;
+        }
+
+
+        statusElement.innerText =
+            "🟢 GPS ACTIVE";
+
+
+        lastUpdateElement.innerText =
+            new Date().toLocaleTimeString();
+
+    }
+
+
+    // ============================================================
+    // GPS ERROR
+    // ============================================================
+
+    function handleError(error) {
+
+        console.error(error);
+
+        statusElement.innerText =
+            "❌ GPS error: " +
+            error.message;
+
+    }
+
+
+    // ============================================================
+    // STOP TRACKING
+    // ============================================================
+
+    stopButton.addEventListener("click", () => {
+
+        if (watchId !== null) {
+
+            navigator.geolocation.clearWatch(
+                watchId
+            );
+
+            watchId = null;
+        }
+
+
+        statusElement.innerText =
+            "🔴 Tracking stopped.";
+
+    });
+
+</script>
+
+</body>
+</html>
