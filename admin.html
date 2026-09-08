@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>SXM Bus - Admin Map</title>
+
+    <!-- Leaflet CSS -->
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        crossorigin=""
+    >
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f4f4;
+        }
+
+        .header {
+            background: #111827;
+            color: white;
+            padding: 15px 20px;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 22px;
+        }
+
+        .header p {
+            margin: 5px 0 0;
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        #map {
+            width: 100%;
+            height: calc(100vh - 80px);
+        }
+
+        .bus-popup {
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .status-box {
+            position: absolute;
+            z-index: 1000;
+            top: 95px;
+            right: 15px;
+            background: white;
+            padding: 12px 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            font-size: 14px;
+        }
+
+        .online {
+            color: green;
+            font-weight: bold;
+        }
+
+        .offline {
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="header">
+    <h1>🚌 SXM BUS — ADMIN</h1>
+    <p>Live Bus Monitoring</p>
+</div>
+
+<div class="status-box" id="systemStatus">
+    Connecting...
+</div>
+
+<div id="map"></div>
+
+<!-- Leaflet JavaScript -->
+<script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    crossorigin="">
+</script>
+
+<script>
+
+    // =========================================================
+    // SUPABASE CONFIGURATION
+    // =========================================================
+
+    const SUPABASE_URL =
+        "https://enqyrmpdaxuelqlgevnl.supabase.co";
+
+    const SUPABASE_KEY =
+        "sb_publishable_J_P6bfidx389dnZJc3H43A_vK3ccYnW";
+
+    const supabaseClient =
+        window.supabase.createClient(
+            SUPABASE_URL,
+            SUPABASE_KEY
+        );
+
+
+    // =========================================================
+    // CREATE MAP
+    // =========================================================
+
+    const map = L.map("map").setView(
+        [18.0425, -63.0548],
+        12
+    );
+
+
+    // OpenStreetMap tiles
+    L.tileLayer(
+        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+            maxZoom: 19,
+            attribution:
+                '&copy; OpenStreetMap contributors'
+        }
+    ).addTo(map);
+
+
+    // =========================================================
+    // STORE BUS MARKERS
+    // =========================================================
+
+    const busMarkers = {};
+
+
+    // =========================================================
+    // CREATE BUS ICON
+    // =========================================================
+
+    const busIcon = L.divIcon({
+
+        className: "",
+
+        html: `
+            <div style="
+                font-size: 30px;
+                width: 40px;
+                height: 40px;
+                text-align: center;
+            ">
+                🚌
+            </div>
+        `,
+
+        iconSize: [40, 40],
+
+        iconAnchor: [20, 20]
+
+    });
+
+
+    // =========================================================
+    // GET BUS LOCATIONS
+    // =========================================================
+
+    async function loadBusLocations() {
+
+        const status =
+            document.getElementById(
+                "systemStatus"
+            );
+
+        const { data, error } =
+            await supabaseClient
+                .from("bus_locations")
+                .select("*");
+
+        if (error) {
+
+            console.error(
+                "Supabase error:",
+                error
+            );
+
+            status.innerHTML =
+                '<span class="offline">❌ Database error</span>';
+
+            return;
+        }
+
+
+        status.innerHTML =
+            '<span class="online">🟢 Connected</span>';
+
+
+        // =====================================================
+        // UPDATE EACH BUS
+        // =====================================================
+
+        data.forEach(bus => {
+
+            const lat =
+                Number(bus.latitude);
+
+            const lng =
+                Number(bus.longitude);
+
+
+            // Ignore invalid coordinates
+            if (
+                !Number.isFinite(lat) ||
+                !Number.isFinite(lng)
+            ) {
+                return;
+            }
+
+
+            // Popup information
+            const popupContent = `
+                <div class="bus-popup">
+                    <strong>🚌 ${bus.bus_id}</strong><br>
+                    Route: ${bus.route || "Unknown"}<br>
+                    Speed:
+                    ${Number(bus.speed || 0).toFixed(1)}
+                    km/h<br>
+                    Heading:
+                    ${Number(bus.heading || 0).toFixed(0)}°<br>
+                    Last GPS:
+                    ${bus.recorded_at
+                        ? new Date(bus.recorded_at).toLocaleTimeString()
+                        : "Unknown"}
+                </div>
+            `;
+
+
+            // =================================================
+            // BUS ALREADY EXISTS
+            // =================================================
+
+            if (busMarkers[bus.bus_id]) {
+
+                busMarkers[bus.bus_id]
+                    .setLatLng([lat, lng])
+                    .setPopupContent(popupContent);
+
+            }
+
+            // =================================================
+            // NEW BUS
+            // =================================================
+
+            else {
+
+                const marker =
+                    L.marker(
+                        [lat, lng],
+                        {
+                            icon: busIcon
+                        }
+                    )
+                    .addTo(map)
+                    .bindPopup(
+                        popupContent
+                    );
+
+
+                busMarkers[bus.bus_id] =
+                    marker;
+            }
+
+        });
+
+    }
+
+
+    // =========================================================
+    // FIRST LOAD
+    // =========================================================
+
+    loadBusLocations();
+
+
+    // =========================================================
+    // REFRESH EVERY 5 SECONDS
+    // =========================================================
+
+    setInterval(
+        loadBusLocations,
+        5000
+    );
+
+</script>
+
+</body>
+</html>
