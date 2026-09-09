@@ -1,0 +1,1789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SXM Bus Route Editor</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+<style>
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    font-family: Arial, sans-serif;
+    background: #f4f6f8;
+    color: #17202a;
+  }
+
+  header {
+    background: #102a43;
+    color: #fff;
+    padding: 14px 16px;
+  }
+
+  header h1 {
+    margin: 0 0 4px;
+    font-size: 21px;
+  }
+
+  header p {
+    margin: 0;
+    font-size: 13px;
+    opacity: .9;
+  }
+
+  .toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 1200;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    padding: 9px;
+    background: #fff;
+    border-bottom: 1px solid #d9e2ec;
+  }
+
+  select, button {
+    font: inherit;
+    font-size: 13px;
+    padding: 9px 11px;
+    border-radius: 7px;
+    border: 1px solid #bcccdc;
+    background: #fff;
+    cursor: pointer;
+  }
+
+  select { min-width: 340px; }
+
+  button:hover:not(:disabled) {
+    background: #f0f4f8;
+  }
+
+  button:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+  }
+
+  .primary { background:#1565c0!important; border-color:#1565c0!important; color:#fff!important; }
+  .danger { background:#c62828!important; border-color:#c62828!important; color:#fff!important; }
+  .warning { background:#ef6c00!important; border-color:#ef6c00!important; color:#fff!important; }
+  .success { background:#2e7d32!important; border-color:#2e7d32!important; color:#fff!important; }
+  .secondary { background:#455a64!important; border-color:#455a64!important; color:#fff!important; }
+
+  .info {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    padding: 8px 12px;
+    background: #fff;
+    border-bottom: 1px solid #d9e2ec;
+    font-size: 12px;
+  }
+
+  .status {
+    font-weight: 700;
+  }
+
+  #map {
+    width: 100%;
+    height: calc(100vh - 153px);
+    min-height: 600px;
+  }
+
+  .panel {
+    position: absolute;
+    top: 168px;
+    right: 12px;
+    z-index: 1000;
+    width: 360px;
+    max-height: calc(100vh - 195px);
+    overflow: auto;
+    padding: 13px;
+    background: rgba(255,255,255,.97);
+    border-radius: 10px;
+    box-shadow: 0 3px 18px rgba(0,0,0,.18);
+    font-size: 12px;
+    line-height: 1.48;
+  }
+
+  .panel h3 {
+    margin: 0 0 8px;
+    font-size: 15px;
+  }
+
+  .panel p {
+    margin: 7px 0;
+  }
+
+  .panel .tip {
+    margin-top: 10px;
+    padding: 8px;
+    border-left: 4px solid #1565c0;
+    background: #eef5ff;
+  }
+
+  .legend {
+    position: absolute;
+    bottom: 18px;
+    left: 12px;
+    z-index: 1000;
+    background: rgba(255,255,255,.96);
+    padding: 9px 11px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.15);
+    font-size: 11px;
+  }
+
+  .legend-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 3px 0;
+  }
+
+  .legend-line { width: 28px; border-top: 6px solid #1565c0; }
+  .legend-cut { width: 28px; border-top: 8px dashed #c62828; }
+  .legend-replace { width: 28px; border-top: 6px dashed #7b1fa2; }
+  .legend-vertex { width: 10px; height: 10px; border-radius: 50%; background: #fff; border: 2px solid #1565c0; }
+
+  .vertex-marker {
+    width: 12px;
+    height: 12px;
+    border: 2px solid #1565c0;
+    background: rgba(255,255,255,.95);
+    border-radius: 50%;
+    box-shadow: 0 1px 5px rgba(0,0,0,.28);
+  }
+
+  .midpoint-marker {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    background: #1565c0;
+    box-shadow: 0 1px 4px rgba(0,0,0,.28);
+  }
+
+  .cut-start, .cut-end {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    box-shadow: 0 2px 7px rgba(0,0,0,.4);
+  }
+
+  .cut-start { background:#c62828; }
+  .cut-end { background:#ef6c00; }
+
+  .replace-point {
+    width: 19px;
+    height: 19px;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    background: #7b1fa2;
+    box-shadow: 0 2px 7px rgba(0,0,0,.4);
+  }
+
+  .notice {
+    display: none;
+    margin: 0 9px 9px;
+    padding: 9px 11px;
+    background: #fff4e5;
+    border: 1px solid #f3c26b;
+    color: #6b4200;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  @media (max-width:900px) {
+    select { min-width: 100%; width: 100%; }
+    .panel { display:none; }
+    #map { height: calc(100vh - 245px); }
+  }
+</style>
+</head>
+
+<body>
+<header>
+  <h1>SXM Bus Route Editor</h1>
+  <p>Edit OSRM geometry directly: drag vertices, add vertices, delete vertices, or remove an entire unwanted section.</p>
+</header>
+
+<div class="toolbar">
+  <select id="routeSelect">
+    <option value="">Loading routes...</option>
+  </select>
+
+  <button id="buildBtn" class="primary">Build / Rebuild with OSRM</button>
+
+  <button id="vertexBtn">Edit Route Vertices</button>
+  <button id="addVertexBtn" disabled>Add Vertex</button>
+  <button id="deleteVertexBtn" class="danger" disabled title="Turn on Vertex Editing, click one or more route points, then delete them together.">Delete Selected Vertices</button>
+
+  <button id="selectSectionBtn" class="danger">Select Road Section</button>
+  <button id="deleteSectionBtn" class="danger" disabled>Delete Section</button>
+
+  <button id="replacementBtn" class="warning" disabled>Draw Replacement</button>
+  <button id="joinBtn" class="success" disabled>Join Replacement</button>
+
+  <button id="undoBtn">Undo</button>
+  <button id="redoBtn">Redo</button>
+
+  <button id="draftBtn">Save Draft</button>
+  <button id="publishBtn" class="success">Publish</button>
+
+  <button id="reverseBtn" class="secondary">Reverse</button>
+  <button id="validateBtn">Validate</button>
+  <button id="resetBtn">Reset</button>
+</div>
+
+<div id="notice" class="notice"></div>
+
+<div class="info">
+  <span>Geometry points: <b id="pointCount">0</b></span>
+  <span>Distance: <b id="distance">—</b></span>
+  <span>Duration: <b id="duration">—</b></span>
+  <span>State: <b id="state">Saved</b></span>
+  <span class="status" id="status">Loading...</span>
+</div>
+
+<div id="map"></div>
+
+<div class="panel">
+  <h3>How to edit your route</h3>
+
+  <p><b>Edit Route Vertices:</b> shows the actual OSRM geometry points. Drag a point to move the road. Click points to select multiple vertices (selected points turn red), then use <b>Delete Selected Vertices</b> to remove them all at once.</p>
+
+  <p><b>Add Vertex:</b> click anywhere along/near the route to insert a new geometry point. This changes the line directly — no OSRM rebuild is required.</p>
+
+  <p><b>Select Road Section:</b> click the route where the unwanted section starts, then click where it ends.</p>
+
+  <p><b>Delete Section:</b> deletes only that portion. The route is intentionally left with a visible gap. You can save that as a draft.</p>
+
+  <p><b>Draw Replacement:</b> optional. Click several points along the correct road. The points are snapped to the nearest drivable road.</p>
+
+  <p><b>Join Replacement:</b> inserts the replacement and closes the gap.</p>
+
+  <p><b>Build / Rebuild with OSRM:</b> recalculates the entire route. Do not use this after making a manual correction unless you want OSRM to recalculate everything again.</p>
+
+  <div class="tip">
+    For your <b>Philipsburg → Marigot</b> route, you can now delete the wrong OSRM section without creating a replacement. Then add the correct road later.
+  </div>
+</div>
+
+<div class="legend">
+  <div class="legend-row"><span class="legend-line"></span>Current route</div>
+  <div class="legend-row"><span class="legend-cut"></span>Selected section</div>
+  <div class="legend-row"><span class="legend-replace"></span>Replacement</div>
+  <div class="legend-row"><span class="legend-vertex"></span>Editable vertex</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+  const SUPABASE_URL = "https://enqyrmpdaxuelqlgevnl.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_J_P6bfidx389dnZJc3H43A_vK3ccYnW";
+  const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  const map = L.map("map", { preferCanvas: true }).setView([18.03, -63.05], 12);
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 20,
+    attribution: "&copy; OpenStreetMap contributors"
+  }).addTo(map);
+
+  const routeSelect = document.getElementById("routeSelect");
+  const buildBtn = document.getElementById("buildBtn");
+  const vertexBtn = document.getElementById("vertexBtn");
+  const addVertexBtn = document.getElementById("addVertexBtn");
+  const deleteVertexBtn = document.getElementById("deleteVertexBtn");
+  const selectSectionBtn = document.getElementById("selectSectionBtn");
+  const deleteSectionBtn = document.getElementById("deleteSectionBtn");
+  const replacementBtn = document.getElementById("replacementBtn");
+  const joinBtn = document.getElementById("joinBtn");
+  const undoBtn = document.getElementById("undoBtn");
+  const redoBtn = document.getElementById("redoBtn");
+  const draftBtn = document.getElementById("draftBtn");
+  const publishBtn = document.getElementById("publishBtn");
+  const reverseBtn = document.getElementById("reverseBtn");
+  const validateBtn = document.getElementById("validateBtn");
+  const resetBtn = document.getElementById("resetBtn");
+
+  const statusEl = document.getElementById("status");
+  const stateEl = document.getElementById("state");
+  const noticeEl = document.getElementById("notice");
+
+  let routes = [];
+  let selectedRoute = null;
+
+  let savedPoints = [];
+  let savedGeometry = null;
+  let savedDistance = null;
+  let savedDuration = null;
+
+  let points = [];
+  let geometry = null;
+  let distance = null;
+  let duration = null;
+
+  // Gapped state is editor-only. A gapped route is not publishable because
+  // the current driver/ETA stack expects a continuous LineString.
+  let hasGap = false;
+
+  // Editing modes:
+  // vertex = drag/select/delete/add actual geometry vertices
+  // add = add new geometry vertices
+  // cut = select unwanted section
+  // draw = draw replacement
+  let mode = null;
+  let selectedVertexIndices = new Set();
+  let cutStart = null;
+  let cutEnd = null;
+  let replacementPoints = [];
+
+  let routeLayer = null;
+  let selectedSectionLayer = null;
+  let replacementLayer = null;
+
+  let vertexMarkers = [];
+  let cutMarkers = [];
+  let replacementMarkers = [];
+  let midpointMarkers = [];
+
+  let undoStack = [];
+  let redoStack = [];
+  let draftSaved = false;
+
+  function clone(value) {
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  function setStatus(text, good = false) {
+    statusEl.textContent = text;
+    statusEl.style.color = good ? "#2e7d32" : "#243b53";
+  }
+
+  function setNotice(text) {
+    if (!text) {
+      noticeEl.style.display = "none";
+      noticeEl.textContent = "";
+      return;
+    }
+    noticeEl.textContent = text;
+    noticeEl.style.display = "block";
+  }
+
+  function routeLabel(r) {
+    const line = r.line_number ? `Line ${r.line_number}` : (r.line_code || "Route");
+    const variant = r.variant ? ` — ${r.variant}` : "";
+    const direction = r.direction ? ` — ${r.direction}` : "";
+    return `${line}${variant}${direction}`;
+  }
+
+  function isLineString(g) {
+    return !!g &&
+      g.type === "LineString" &&
+      Array.isArray(g.coordinates) &&
+      g.coordinates.length >= 2;
+  }
+
+  function distanceMeters(a, b) {
+    return map.distance([a.lat, a.lng], [b.lat, b.lng]);
+  }
+
+  function geometryLength(g) {
+    if (!isLineString(g)) return 0;
+    let total = 0;
+
+    for (let i = 1; i < g.coordinates.length; i++) {
+      total += map.distance(
+        [g.coordinates[i - 1][1], g.coordinates[i - 1][0]],
+        [g.coordinates[i][1], g.coordinates[i][0]]
+      );
+    }
+    return total;
+  }
+
+  function geometryLengthMulti(g) {
+    if (!g) return 0;
+
+    if (g.type === "LineString") {
+      return geometryLength(g);
+    }
+
+    if (g.type === "MultiLineString") {
+      return g.coordinates.reduce((sum, coords) =>
+        sum + geometryLength({ type: "LineString", coordinates: coords }), 0);
+    }
+
+    return 0;
+  }
+
+  function setGeometry(g) {
+    geometry = g ? clone(g) : null;
+  }
+
+  function getGeometryCoords() {
+    return isLineString(geometry) ? geometry.coordinates : [];
+  }
+
+  function updateInfo() {
+    const count = getGeometryCoords().length;
+
+    document.getElementById("pointCount").textContent = count;
+    document.getElementById("distance").textContent =
+      geometry ? `${(geometryLengthMulti(geometry) / 1000).toFixed(2)} km` : "—";
+
+    document.getElementById("duration").textContent =
+      Number.isFinite(duration) ? `${Math.round(duration / 60)} min` : "—";
+
+    stateEl.textContent =
+      hasGap ? "Gapped draft" :
+      draftSaved ? "Draft" : "Saved";
+
+    updateButtons();
+  }
+
+  function updateButtons() {
+    const hasRoute = !!geometry;
+    const hasSelection = cutStart !== null && cutEnd !== null;
+
+    buildBtn.disabled = !selectedRoute || mode === "draw";
+    vertexBtn.disabled = !hasRoute || hasGap;
+    addVertexBtn.disabled = !hasRoute || mode !== "add" || hasGap;
+    deleteVertexBtn.disabled = selectedVertexIndices.size === 0 || !isLineString(geometry) || hasGap || geometry.coordinates.length - selectedVertexIndices.size < 2;
+
+    selectSectionBtn.disabled = !hasRoute || !isLineString(geometry) || mode === "draw";
+    deleteSectionBtn.disabled = !hasSelection || hasGap;
+    replacementBtn.disabled = !hasSelection || hasGap;
+    joinBtn.disabled = !hasSelection || replacementPoints.length === 0;
+
+    undoBtn.disabled = undoStack.length === 0;
+    redoBtn.disabled = redoStack.length === 0;
+
+    draftBtn.disabled = !geometry;
+    publishBtn.disabled = !geometry || hasGap || !isLineString(geometry);
+    reverseBtn.disabled = !geometry || hasGap || !isLineString(geometry) || mode !== null;
+    validateBtn.disabled = !selectedRoute || !geometry;
+    resetBtn.disabled = !selectedRoute || mode !== null;
+  }
+
+  function clearLayer(layer) {
+    if (layer && map.hasLayer(layer)) map.removeLayer(layer);
+  }
+
+  function clearAllGraphics() {
+    clearLayer(routeLayer);
+    clearLayer(selectedSectionLayer);
+    clearLayer(replacementLayer);
+
+    vertexMarkers.forEach(clearLayer);
+    midpointMarkers.forEach(clearLayer);
+    cutMarkers.forEach(clearLayer);
+    replacementMarkers.forEach(clearLayer);
+
+    routeLayer = null;
+    selectedSectionLayer = null;
+    replacementLayer = null;
+
+    vertexMarkers = [];
+    midpointMarkers = [];
+    cutMarkers = [];
+    replacementMarkers = [];
+  }
+
+  function vertexIcon(selected = false) {
+    const border = selected ? "#c62828" : "#1565c0";
+    const bg = selected ? "#c62828" : "#fff";
+
+    return L.divIcon({
+      className: "",
+      html: `<div style="
+        width:12px;height:12px;border-radius:50%;
+        background:${bg};border:2px solid ${border};
+        box-shadow:0 1px 5px rgba(0,0,0,.35)
+      "></div>`,
+      iconSize: [12, 12],
+      iconAnchor: [6, 6]
+    });
+  }
+
+  function midpointIcon() {
+    return L.divIcon({
+      className: "",
+      html: `<div style="
+        width:10px;height:10px;border-radius:50%;
+        background:#1565c0;border:2px solid white;
+        box-shadow:0 1px 4px rgba(0,0,0,.3)
+      "></div>`,
+      iconSize: [10, 10],
+      iconAnchor: [5, 5]
+    });
+  }
+
+  function simpleIcon(type) {
+    if (type === "start") {
+      return L.divIcon({
+        className: "",
+        html: `<div class="cut-start"></div>`,
+        iconSize: [22,22],
+        iconAnchor: [11,11]
+      });
+    }
+
+    if (type === "end") {
+      return L.divIcon({
+        className: "",
+        html: `<div class="cut-end"></div>`,
+        iconSize: [22,22],
+        iconAnchor: [11,11]
+      });
+    }
+
+    return L.divIcon({
+      className: "",
+      html: `<div class="replace-point"></div>`,
+      iconSize: [19,19],
+      iconAnchor: [9.5,9.5]
+    });
+  }
+
+  function drawRoute() {
+    clearLayer(routeLayer);
+    routeLayer = null;
+
+    if (!geometry) return;
+
+    routeLayer = L.geoJSON(geometry, {
+      style: {
+        color: "#1565c0",
+        weight: 7,
+        opacity: .92
+      }
+    }).addTo(map);
+
+    routeLayer.on("click", e => {
+      if (mode === "cut") {
+        handleCutClick(e.latlng);
+      }
+    });
+  }
+
+  function drawVertices() {
+    vertexMarkers.forEach(clearLayer);
+    midpointMarkers.forEach(clearLayer);
+
+    vertexMarkers = [];
+    midpointMarkers = [];
+
+    if (!isLineString(geometry)) return;
+
+    const coords = geometry.coordinates;
+
+    coords.forEach((c, index) => {
+      const marker = L.marker([c[1], c[0]], {
+        icon: vertexIcon(selectedVertexIndices.has(index)),
+        draggable: mode === "vertex"
+      }).addTo(map);
+
+      marker.bindTooltip(`Geometry point ${index + 1}`, {
+        direction: "top",
+        opacity: 0.8
+      });
+
+      marker.on("click", e => {
+        L.DomEvent.stopPropagation(e);
+
+        if (mode !== "vertex") return;
+
+        if (selectedVertexIndices.has(index)) {
+          selectedVertexIndices.delete(index);
+        } else {
+          selectedVertexIndices.add(index);
+        }
+
+        drawVertices();
+        updateButtons();
+
+        const count = selectedVertexIndices.size;
+        setStatus(
+          count === 0
+            ? "No geometry points selected."
+            : `${count} geometry point${count === 1 ? "" : "s"} selected. Click more points to add/remove them from the selection.`
+        );
+      });
+
+      marker.on("dragend", () => {
+        if (mode !== "vertex") return;
+
+        saveUndo();
+
+        const p = marker.getLatLng();
+        geometry.coordinates[index] = [p.lng, p.lat];
+
+        distance = geometryLength(geometry);
+        draftSaved = false;
+        hasGap = false;
+
+        drawAll();
+        setStatus(`Moved geometry point ${index + 1}.`, true);
+      });
+
+      vertexMarkers.push(marker);
+    });
+
+    // Midpoints allow a user to add vertices with one click.
+    // They are visible only in vertex mode.
+    if (mode === "vertex") {
+      for (let i = 0; i < coords.length - 1; i++) {
+        const a = L.latLng(coords[i][1], coords[i][0]);
+        const b = L.latLng(coords[i + 1][1], coords[i + 1][0]);
+        const mid = L.latLng((a.lat + b.lat) / 2, (a.lng + b.lng) / 2);
+
+        const m = L.marker(mid, {
+          icon: midpointIcon(),
+          opacity: 0.85
+        }).addTo(map);
+
+        m.bindTooltip("Click to insert a point here", {
+          direction: "top",
+          opacity: 0.75
+        });
+
+        m.on("click", e => {
+          L.DomEvent.stopPropagation(e);
+
+          saveUndo();
+
+          const pos = m.getLatLng();
+          geometry.coordinates.splice(i + 1, 0, [pos.lng, pos.lat]);
+
+          selectedVertexIndices = new Set([...selectedVertexIndices].map(v => v > i ? v + 1 : v));
+          selectedVertexIndices.add(i + 1);
+          distance = geometryLength(geometry);
+          draftSaved = false;
+
+          drawAll();
+          setStatus(`Inserted geometry point ${i + 2}.`, true);
+        });
+
+        midpointMarkers.push(m);
+      }
+    }
+  }
+
+  function nearestVertex(latlng) {
+    if (!isLineString(geometry)) return null;
+
+    let best = null;
+    let bestD = Infinity;
+
+    geometry.coordinates.forEach((c, index) => {
+      const d = map.distance(latlng, [c[1], c[0]]);
+
+      if (d < bestD) {
+        bestD = d;
+        best = {
+          index,
+          point: { lat: c[1], lng: c[0] },
+          distance: d
+        };
+      }
+    });
+
+    return best;
+  }
+
+  function nearestSegmentProjection(latlng) {
+    if (!isLineString(geometry)) return null;
+
+    const target = map.project(latlng, 20);
+    const coords = geometry.coordinates;
+
+    let best = null;
+    let bestD2 = Infinity;
+
+    for (let i = 0; i < coords.length - 1; i++) {
+      const a = map.project([coords[i][1], coords[i][0]], 20);
+      const b = map.project([coords[i + 1][1], coords[i + 1][0]], 20);
+
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const len2 = dx * dx + dy * dy;
+
+      let t = len2 ? ((target.x - a.x) * dx + (target.y - a.y) * dy) / len2 : 0;
+      t = Math.max(0, Math.min(1, t));
+
+      const x = a.x + t * dx;
+      const y = a.y + t * dy;
+
+      const d2 = (target.x - x) ** 2 + (target.y - y) ** 2;
+
+      if (d2 < bestD2) {
+        const ll = map.unproject(L.point(x, y), 20);
+
+        bestD2 = d2;
+        best = {
+          segmentIndex: i,
+          t,
+          point: { lat: ll.lat, lng: ll.lng },
+          distance: Math.sqrt(d2)
+        };
+      }
+    }
+
+    return best;
+  }
+
+  function handleCutClick(latlng) {
+    if (mode !== "cut" || !isLineString(geometry)) return;
+
+    const hit = nearestVertex(latlng);
+    if (!hit) return;
+
+    if (cutStart === null) {
+      cutStart = hit;
+      cutEnd = null;
+      drawCutGraphics();
+
+      setStatus(
+        `Delete start selected at geometry point ${hit.index + 1}. Now click where the unwanted section ends.`
+      );
+      updateButtons();
+      return;
+    }
+
+    if (hit.index === cutStart.index) {
+      setStatus("Choose a different endpoint.");
+      return;
+    }
+
+    cutEnd = hit;
+
+    if (cutEnd.index < cutStart.index) {
+      [cutStart, cutEnd] = [cutEnd, cutStart];
+    }
+
+    setMode(null);
+    drawCutGraphics();
+
+    setStatus(
+      "Section selected. Click Delete Section to remove it, or Draw Replacement if you want to replace it."
+    );
+    updateButtons();
+  }
+
+  function drawCutGraphics() {
+    clearLayer(selectedSectionLayer);
+    selectedSectionLayer = null;
+
+    cutMarkers.forEach(clearLayer);
+    cutMarkers = [];
+
+    if (!geometry || cutStart === null || cutEnd === null) {
+      return;
+    }
+
+    const coords = geometry.coordinates;
+    const section = coords.slice(
+      Math.min(cutStart.index, cutEnd.index),
+      Math.max(cutStart.index, cutEnd.index) + 1
+    );
+
+    if (section.length >= 2) {
+      selectedSectionLayer = L.polyline(
+        section.map(c => [c[1], c[0]]),
+        {
+          color: "#c62828",
+          weight: 12,
+          opacity: .75,
+          dashArray: "14 10"
+        }
+      ).addTo(map);
+
+      selectedSectionLayer.bringToFront();
+    }
+
+    const a = coords[cutStart.index];
+    const b = coords[cutEnd.index];
+
+    const sm = L.marker([a[1], a[0]], { icon: simpleIcon("start") })
+      .addTo(map);
+    const em = L.marker([b[1], b[0]], { icon: simpleIcon("end") })
+      .addTo(map);
+
+    sm.bindTooltip("DELETE START", { direction: "top" });
+    em.bindTooltip("DELETE END", { direction: "top" });
+
+    cutMarkers.push(sm, em);
+  }
+
+  function drawReplacementGraphics() {
+    clearLayer(replacementLayer);
+    replacementLayer = null;
+
+    replacementMarkers.forEach(clearLayer);
+    replacementMarkers = [];
+
+    if (!geometry || cutStart === null || cutEnd === null || replacementPoints.length === 0) {
+      return;
+    }
+
+    const coords = geometry.coordinates;
+
+    const start = coords[cutStart.index];
+    const end = coords[cutEnd.index];
+
+    replacementLayer = L.polyline(
+      [
+        [start[1], start[0]],
+        ...replacementPoints.map(p => [p.lat, p.lng]),
+        [end[1], end[0]]
+      ],
+      {
+        color: "#7b1fa2",
+        weight: 6,
+        opacity: .92,
+        dashArray: "10 7"
+      }
+    ).addTo(map);
+
+    replacementLayer.bringToFront();
+
+    replacementPoints.forEach((p, i) => {
+      const m = L.marker([p.lat, p.lng], {
+        icon: simpleIcon("draw")
+      }).addTo(map);
+
+      m.bindTooltip(`Replacement point ${i + 1}`, {
+        direction: "top"
+      });
+
+      replacementMarkers.push(m);
+    });
+  }
+
+  function drawAll() {
+    clearAllGraphics();
+    drawRoute();
+    drawVertices();
+    drawCutGraphics();
+    drawReplacementGraphics();
+    updateInfo();
+  }
+
+  function resetCutState() {
+    cutStart = null;
+    cutEnd = null;
+    replacementPoints = [];
+
+    clearLayer(selectedSectionLayer);
+    clearLayer(replacementLayer);
+
+    cutMarkers.forEach(clearLayer);
+    replacementMarkers.forEach(clearLayer);
+
+    selectedSectionLayer = null;
+    replacementLayer = null;
+    cutMarkers = [];
+    replacementMarkers = [];
+  }
+
+  function setMode(newMode) {
+    mode = newMode;
+
+    vertexBtn.classList.toggle("primary", mode === "vertex");
+    addVertexBtn.classList.toggle("primary", mode === "add");
+    selectSectionBtn.classList.toggle("primary", mode === "cut");
+    replacementBtn.classList.toggle("primary", mode === "draw");
+
+    vertexBtn.textContent =
+      mode === "vertex" ? "Vertex Editing: ON" : "Edit Route Vertices";
+
+    addVertexBtn.textContent =
+      mode === "add" ? "Click to Add Vertices" : "Add Vertex";
+
+    selectSectionBtn.textContent =
+      mode === "cut" ? "Selecting Section..." : "Select Road Section";
+
+    replacementBtn.textContent =
+      mode === "draw" ? "Drawing Replacement..." : "Draw Replacement";
+
+    updateButtons();
+
+    if (mode === "vertex") {
+      setStatus(
+        "Vertex editing ON — drag any geometry point, click a point to select it, or click a midpoint to insert a new point."
+      );
+    } else if (mode === "add") {
+      setStatus(
+        "Add mode ON — click the map to add a point to the route geometry."
+      );
+    } else if (mode === "cut") {
+      setStatus(
+        "Section selection ON — click the route at the START of the unwanted section."
+      );
+    } else if (mode === "draw") {
+      setStatus(
+        "Draw mode ON — click the correct road to add replacement points."
+      );
+    }
+  }
+
+  async function snapToRoad(latlng) {
+    const url =
+      `https://router.project-osrm.org/nearest/v1/driving/` +
+      `${latlng.lng},${latlng.lat}?number=1`;
+
+    const res = await fetch(url);
+
+    if (!res.ok) {
+      throw new Error(`Road snapping failed (HTTP ${res.status}).`);
+    }
+
+    const data = await res.json();
+
+    if (data.code !== "Ok" || !data.waypoints?.length) {
+      throw new Error("No drivable road was found near that point.");
+    }
+
+    const loc = data.waypoints[0].location;
+
+    return {
+      lat: Number(loc[1]),
+      lng: Number(loc[0])
+    };
+  }
+
+  function insertVertexAtClick(latlng) {
+    const hit = nearestSegmentProjection(latlng);
+
+    if (!hit) return false;
+
+    const snapped = hit.point;
+    geometry.coordinates.splice(
+      hit.segmentIndex + 1,
+      0,
+      [snapped.lng, snapped.lat]
+    );
+
+    selectedVertexIndices = new Set([hit.segmentIndex + 1]);
+    return true;
+  }
+
+  async function addVertexToMap(latlng) {
+    if (!geometry || !isLineString(geometry)) return;
+
+    try {
+      // Insert directly into the nearest geometry segment. This keeps the
+      // route coordinate order correct instead of appending the point to the end.
+      const snapped = await snapToRoad(latlng);
+      const hit = nearestSegmentProjection(L.latLng(snapped.lat, snapped.lng));
+      if (!hit) return;
+
+      saveUndo();
+
+      geometry.coordinates.splice(
+        hit.segmentIndex + 1,
+        0,
+        [snapped.lng, snapped.lat]
+      );
+      selectedVertexIndices = new Set([...selectedVertexIndices].map(v => v > hit.segmentIndex ? v + 1 : v));
+      selectedVertexIndices.add(hit.segmentIndex + 1);
+      distance = geometryLength(geometry);
+      draftSaved = false;
+
+      drawAll();
+
+      setStatus(
+        `Inserted a new geometry point at position ${hit.segmentIndex + 2}.`,
+        true
+      );
+    } catch (err) {
+      console.error(err);
+      setStatus(err.message);
+      alert(err.message);
+    }
+  }
+
+  function deleteSelectedVertices() {
+    if (
+      selectedVertexIndices.size === 0 ||
+      !isLineString(geometry)
+    ) {
+      return;
+    }
+
+    const indices = [...selectedVertexIndices].sort((a, b) => a - b);
+
+    if (geometry.coordinates.length - indices.length < 2) {
+      alert("A route must keep at least two geometry points.");
+      return;
+    }
+
+    if (!confirm(
+      `Delete ${indices.length} selected geometry point${indices.length === 1 ? "" : "s"}?\n\n` +
+      "The remaining route geometry will stay in place. Use Undo if needed."
+    )) {
+      return;
+    }
+
+    saveUndo();
+
+    const removeSet = new Set(indices);
+    geometry.coordinates = geometry.coordinates.filter((_, i) => !removeSet.has(i));
+
+    selectedVertexIndices = new Set();
+    distance = geometryLength(geometry);
+    draftSaved = false;
+
+    drawAll();
+
+    setStatus(
+      `${indices.length} geometry point${indices.length === 1 ? "" : "s"} deleted.`,
+      true
+    );
+  }
+
+  function deleteSelectedSection() {
+    if (!isLineString(geometry) || cutStart === null || cutEnd === null) {
+      alert("Select a section first.");
+      return;
+    }
+
+    const s = Math.min(cutStart.index, cutEnd.index);
+    const e = Math.max(cutStart.index, cutEnd.index);
+
+    if (s === 0 && e === geometry.coordinates.length - 1) {
+      alert("You cannot delete the entire route.");
+      return;
+    }
+
+    if (!confirm(
+      "Delete the selected road section?\n\n" +
+      "The route will be left with a visible gap. You can save this as a draft, " +
+      "but it cannot be published until the gap is repaired."
+    )) {
+      return;
+    }
+
+    saveUndo();
+
+    const coords = geometry.coordinates;
+
+    const firstPart = coords.slice(0, s + 1);
+    const secondPart = coords.slice(e);
+
+    const parts = [];
+
+    if (firstPart.length >= 2) parts.push(firstPart);
+    if (secondPart.length >= 2) parts.push(secondPart);
+
+    if (!parts.length) {
+      geometry = null;
+    } else if (parts.length === 1) {
+      geometry = {
+        type: "LineString",
+        coordinates: parts[0]
+      };
+    } else {
+      geometry = {
+        type: "MultiLineString",
+        coordinates: parts
+      };
+    }
+
+    hasGap = true;
+    duration = null;
+    distance = geometryLengthMulti(geometry);
+    draftSaved = false;
+
+    resetCutState();
+    selectedVertexIndices = new Set();
+
+    setMode(null);
+    drawAll();
+
+    setNotice(
+      "This route has a GAP. It is safe as a draft, but it cannot be published until you join or redraw the missing section."
+    );
+
+    setStatus("Selected section deleted. Nothing was automatically re-routed.", true);
+  }
+
+  function joinReplacement() {
+    if (!geometry || !isLineString(geometry) ||
+        cutStart === null || cutEnd === null ||
+        replacementPoints.length === 0) {
+      alert("Select a section and draw replacement points first.");
+      return;
+    }
+
+    const s = Math.min(cutStart.index, cutEnd.index);
+    const e = Math.max(cutStart.index, cutEnd.index);
+
+    saveUndo();
+
+    const coords = geometry.coordinates;
+    const replacement = [
+      coords[s],
+      ...replacementPoints.map(p => [p.lng, p.lat]),
+      coords[e]
+    ];
+
+    geometry = {
+      type: "LineString",
+      coordinates: compactCoordinates([
+        ...coords.slice(0, s),
+        ...replacement,
+        ...coords.slice(e + 1)
+      ])
+    };
+
+    distance = geometryLength(geometry);
+    hasGap = false;
+    draftSaved = false;
+
+    resetCutState();
+    setMode(null);
+
+    drawAll();
+    fitMap();
+
+    setNotice("");
+
+    setStatus(
+      "Replacement joined into the route. Check it carefully before publishing.",
+      true
+    );
+  }
+
+  function compactCoordinates(coords) {
+    const result = [];
+
+    for (const c of coords) {
+      const last = result[result.length - 1];
+
+      if (!last) {
+        result.push(c);
+        continue;
+      }
+
+      const d = map.distance(
+        [last[1], last[0]],
+        [c[1], c[0]]
+      );
+
+      if (d > 1) result.push(c);
+    }
+
+    return result;
+  }
+
+  function saveUndo() {
+    undoStack.push({
+      points: clone(points),
+      geometry: clone(geometry),
+      distance,
+      duration,
+      hasGap,
+      draftSaved
+    });
+
+    if (undoStack.length > 50) undoStack.shift();
+
+    redoStack = [];
+    updateButtons();
+  }
+
+  function restoreState(state) {
+    points = clone(state.points);
+    geometry = clone(state.geometry);
+    distance = state.distance;
+    duration = state.duration;
+    hasGap = state.hasGap;
+    draftSaved = state.draftSaved;
+
+    resetCutState();
+    selectedVertexIndices = new Set();
+    setMode(null);
+
+    drawAll();
+
+    if (hasGap) {
+      setNotice(
+        "This is a gapped draft. Publish is disabled until the route is continuous again."
+      );
+    } else {
+      setNotice("");
+    }
+  }
+
+  function fitMap() {
+    if (!geometry) return;
+
+    const layer = L.geoJSON(geometry);
+    const bounds = layer.getBounds();
+
+    if (bounds.isValid()) {
+      map.fitBounds(bounds.pad(.08));
+    }
+  }
+
+  buildBtn.addEventListener("click", async () => {
+    if (!selectedRoute) {
+      alert("Select a route first.");
+      return;
+    }
+
+    if (points.length < 2) {
+      alert(
+        "This route needs at least two route points.\n\n" +
+        "Use Add / Move Points or edit the route points before building with OSRM."
+      );
+      return;
+    }
+
+    if (!confirm(
+      "Rebuild the ENTIRE route with OSRM?\n\n" +
+      "Any manual geometry edits that are not saved will be replaced."
+    )) {
+      return;
+    }
+
+    saveUndo();
+    resetCutState();
+    selectedVertexIndices = new Set();
+    setMode(null);
+
+    setStatus("Building the complete route with OSRM...");
+
+    try {
+      const coords = points.map(p => `${p.lng},${p.lat}`).join(";");
+
+      const url =
+        `https://router.project-osrm.org/route/v1/driving/${coords}` +
+        `?overview=full&geometries=geojson&steps=false&continue_straight=true`;
+
+      const res = await fetch(url);
+
+      if (!res.ok) {
+        throw new Error(`OSRM HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+
+      if (data.code !== "Ok" || !data.routes?.length) {
+        throw new Error(data.message || "OSRM could not build the route.");
+      }
+
+      const route = data.routes[0];
+
+      geometry = route.geometry;
+      distance = Number(route.distance);
+      duration = Number(route.duration);
+      hasGap = false;
+      draftSaved = false;
+
+      drawAll();
+      fitMap();
+
+      setNotice("");
+
+      setStatus(
+        "Whole route rebuilt with OSRM. You can now edit the actual geometry directly.",
+        true
+      );
+    } catch (err) {
+      console.error(err);
+      setStatus(`OSRM failed: ${err.message}`);
+      alert(`OSRM failed:\n${err.message}`);
+    }
+  });
+
+  vertexBtn.addEventListener("click", () => {
+    if (!geometry || !isLineString(geometry)) return;
+
+    resetCutState();
+    selectedVertexIndices = new Set();
+
+    if (mode === "vertex") {
+      setMode(null);
+      setStatus("Vertex editing OFF.");
+    } else {
+      setMode("vertex");
+    }
+
+    drawAll();
+  });
+
+  addVertexBtn.addEventListener("click", () => {
+    if (!geometry || !isLineString(geometry)) return;
+
+    resetCutState();
+    selectedVertexIndices = new Set();
+
+    if (mode === "add") {
+      setMode(null);
+      setStatus("Add mode OFF.");
+    } else {
+      setMode("add");
+    }
+
+    drawAll();
+  });
+
+  deleteVertexBtn.addEventListener("click", deleteSelectedVertices);
+
+  selectSectionBtn.addEventListener("click", () => {
+    if (!geometry || !isLineString(geometry)) {
+      alert("A continuous route geometry is required.");
+      return;
+    }
+
+    resetCutState();
+    setMode("cut");
+    drawAll();
+  });
+
+  deleteSectionBtn.addEventListener("click", deleteSelectedSection);
+
+  replacementBtn.addEventListener("click", () => {
+    if (cutStart === null || cutEnd === null) {
+      alert("Select the unwanted section first.");
+      return;
+    }
+
+    if (mode === "draw") {
+      setMode(null);
+      setStatus("Replacement drawing OFF.");
+    } else {
+      setMode("draw");
+      setStatus("Click several points along the correct road.");
+    }
+
+    drawAll();
+  });
+
+  joinBtn.addEventListener("click", joinReplacement);
+
+  map.on("click", async e => {
+    if (mode === "add") {
+      await addVertexToMap(e.latlng);
+      return;
+    }
+
+    if (mode === "draw") {
+      try {
+        const snapped = await snapToRoad(e.latlng);
+        replacementPoints.push(snapped);
+        drawReplacementGraphics();
+        updateButtons();
+
+        setStatus(
+          `${replacementPoints.length} replacement point(s). Continue along the correct road, then click Join Replacement.`
+        );
+      } catch (err) {
+        console.error(err);
+        setStatus(err.message);
+        alert(err.message);
+      }
+      return;
+    }
+
+    if (mode === "cut") {
+      handleCutClick(e.latlng);
+    }
+  });
+
+  undoBtn.addEventListener("click", () => {
+    if (!undoStack.length) return;
+
+    redoStack.push({
+      points: clone(points),
+      geometry: clone(geometry),
+      distance,
+      duration,
+      hasGap,
+      draftSaved
+    });
+
+    restoreState(undoStack.pop());
+    setStatus("Undo complete.");
+  });
+
+  redoBtn.addEventListener("click", () => {
+    if (!redoStack.length) return;
+
+    undoStack.push({
+      points: clone(points),
+      geometry: clone(geometry),
+      distance,
+      duration,
+      hasGap,
+      draftSaved
+    });
+
+    restoreState(redoStack.pop());
+    setStatus("Redo complete.");
+  });
+
+  draftBtn.addEventListener("click", () => {
+    if (!selectedRoute || !geometry) {
+      alert("Load or edit a route first.");
+      return;
+    }
+
+    localStorage.setItem(
+      `sxm-route-draft-${selectedRoute.id}`,
+      JSON.stringify({
+        routeId: selectedRoute.id,
+        points,
+        geometry,
+        distance,
+        duration,
+        hasGap,
+        savedAt: new Date().toISOString()
+      })
+    );
+
+    draftSaved = true;
+    updateInfo();
+
+    setNotice(
+      hasGap
+        ? "Gapped draft saved locally. The live Supabase route has not changed."
+        : "Draft saved locally. The live Supabase route has not changed."
+    );
+
+    setStatus("Draft saved in this browser.", true);
+  });
+
+  publishBtn.addEventListener("click", async () => {
+    if (!selectedRoute || !geometry) {
+      alert("Load a route first.");
+      return;
+    }
+
+    if (hasGap || !isLineString(geometry)) {
+      alert(
+        "This route contains a gap.\n\n" +
+        "Repair the route before publishing it."
+      );
+      return;
+    }
+
+    const validation = validateRoute(false);
+
+    if (!validation.valid) {
+      alert(
+        "This route cannot be published yet:\n\n" +
+        validation.messages.join("\n")
+      );
+      return;
+    }
+
+    if (!confirm(
+      `Publish this route?\n\n${routeLabel(selectedRoute)}\n\n` +
+      "This will update the route geometry in Supabase and the live map."
+    )) {
+      return;
+    }
+
+    setStatus("Publishing route...");
+
+    const { error } = await db
+      .from("routes")
+      .update({
+        route_points: points,
+        road_geometry: geometry,
+        road_distance_meters: distance,
+        road_duration_seconds: duration
+      })
+      .eq("id", selectedRoute.id);
+
+    if (error) {
+      console.error(error);
+      setStatus(`Publish failed: ${error.message}`);
+      alert(`Publish failed:\n${error.message}`);
+      return;
+    }
+
+    savedPoints = clone(points);
+    savedGeometry = clone(geometry);
+    savedDistance = distance;
+    savedDuration = duration;
+
+    undoStack = [];
+    redoStack = [];
+    draftSaved = false;
+
+    localStorage.removeItem(`sxm-route-draft-${selectedRoute.id}`);
+    setNotice("");
+
+    updateInfo();
+    setStatus("Route published successfully to Supabase.", true);
+    alert("Route published successfully.");
+  });
+
+  reverseBtn.addEventListener("click", () => {
+    if (!geometry || !isLineString(geometry)) return;
+
+    if (!confirm(
+      "Reverse this route locally?\n\n" +
+      "Review the endpoints before publishing."
+    )) {
+      return;
+    }
+
+    saveUndo();
+
+    points = clone(points).reverse();
+    geometry = {
+      type: "LineString",
+      coordinates: clone(geometry.coordinates).reverse()
+    };
+
+    draftSaved = false;
+
+    resetEditingState();
+    drawAll();
+    fitMap();
+
+    setStatus(
+      "Route reversed locally. Review it carefully before publishing."
+    );
+  });
+
+  function resetEditingState() {
+    resetCutState();
+    selectedVertexIndices = new Set();
+    setMode(null);
+  }
+
+  function validateRoute(showAlert = true) {
+    const messages = [];
+    let valid = true;
+
+    if (!selectedRoute) {
+      valid = false;
+      messages.push("No route selected.");
+    }
+
+    if (!geometry) {
+      valid = false;
+      messages.push("No route geometry.");
+    }
+
+    if (hasGap || geometry?.type === "MultiLineString") {
+      valid = false;
+      messages.push("Route contains a gap.");
+    }
+
+    if (!isLineString(geometry)) {
+      valid = false;
+      messages.push("Final geometry must be a continuous LineString.");
+    }
+
+    if (points.length < 2) {
+      valid = false;
+      messages.push("At least two route points are required.");
+    }
+
+    const d = geometryLength(geometry);
+
+    if (geometry && d < 100) {
+      valid = false;
+      messages.push("Route is unusually short.");
+    }
+
+    if (!messages.length) {
+      messages.push("Route passed basic validation.");
+    }
+
+    if (showAlert) {
+      alert(messages.join("\n"));
+      setStatus(valid ? "Validation passed." : "Validation found issues.", valid);
+    }
+
+    return { valid, messages };
+  }
+
+  validateBtn.addEventListener("click", () => validateRoute(true));
+
+  resetBtn.addEventListener("click", () => {
+    if (!selectedRoute) return;
+
+    if (!confirm("Reset to the last version saved in Supabase?")) return;
+
+    points = clone(savedPoints);
+    geometry = clone(savedGeometry);
+    distance = savedDistance;
+    duration = savedDuration;
+    hasGap = false;
+    draftSaved = false;
+
+    undoStack = [];
+    redoStack = [];
+
+    localStorage.removeItem(`sxm-route-draft-${selectedRoute.id}`);
+
+    resetEditingState();
+    drawAll();
+    fitMap();
+    setNotice("");
+
+    setStatus("Reset to the saved Supabase route.");
+  });
+
+  routeSelect.addEventListener("change", () => {
+    const id = Number(routeSelect.value);
+
+    selectedRoute = routes.find(r => Number(r.id) === id) || null;
+    if (!selectedRoute) return;
+
+    savedPoints = Array.isArray(selectedRoute.route_points)
+      ? clone(selectedRoute.route_points)
+      : [];
+
+    savedGeometry = selectedRoute.road_geometry
+      ? clone(selectedRoute.road_geometry)
+      : null;
+
+    savedDistance = Number.isFinite(Number(selectedRoute.road_distance_meters))
+      ? Number(selectedRoute.road_distance_meters)
+      : null;
+
+    savedDuration = Number.isFinite(Number(selectedRoute.road_duration_seconds))
+      ? Number(selectedRoute.road_duration_seconds)
+      : null;
+
+    points = clone(savedPoints);
+    geometry = clone(savedGeometry);
+    distance = savedDistance;
+    duration = savedDuration;
+    hasGap = false;
+    draftSaved = false;
+
+    undoStack = [];
+    redoStack = [];
+
+    resetEditingState();
+
+    // Do not silently load drafts; explicitly offer them.
+    const rawDraft = localStorage.getItem(
+      `sxm-route-draft-${selectedRoute.id}`
+    );
+
+    if (rawDraft) {
+      try {
+        const draft = JSON.parse(rawDraft);
+
+        if (draft?.geometry && Array.isArray(draft?.points)) {
+          const useDraft = confirm(
+            `A local draft exists for ${routeLabel(selectedRoute)}.\n\n` +
+            "OK = load draft\nCancel = load saved Supabase route"
+          );
+
+          if (useDraft) {
+            points = draft.points;
+            geometry = draft.geometry;
+            distance = draft.distance;
+            duration = draft.duration;
+            hasGap = !!draft.hasGap;
+            draftSaved = true;
+          }
+        }
+      } catch (err) {
+        console.warn("Could not read local draft:", err);
+      }
+    }
+
+    drawAll();
+    fitMap();
+
+    if (hasGap) {
+      setNotice(
+        "Gapped draft loaded. You may edit it, but Publish is disabled until the route is continuous."
+      );
+    } else {
+      setNotice("");
+    }
+
+    setStatus(`Loaded ${routeLabel(selectedRoute)}.`, true);
+  });
+
+  async function loadRoutes() {
+    setStatus("Loading routes...");
+
+    const { data, error } = await db
+      .from("routes")
+      .select(`
+        id,
+        route_name,
+        direction,
+        region,
+        line_number,
+        line_code,
+        variant,
+        origin,
+        destination,
+        route_points,
+        road_geometry,
+        road_distance_meters,
+        road_duration_seconds,
+        active
+      `)
+      .eq("active", true)
+      .order("region", { ascending: true })
+      .order("line_number", { ascending: true })
+      .order("variant", { ascending: true })
+      .order("direction", { ascending: true });
+
+    if (error) {
+      console.error(error);
+      routeSelect.innerHTML = `<option value="">Could not load routes</option>`;
+      setStatus(`Supabase error: ${error.message}`);
+      return;
+    }
+
+    routes = data || [];
+    routeSelect.innerHTML = `<option value="">Select a route...</option>`;
+
+    const groups = {};
+
+    routes.forEach(r => {
+      const region = r.region || "Other";
+
+      if (!groups[region]) {
+        groups[region] = document.createElement("optgroup");
+        groups[region].label = region;
+        routeSelect.appendChild(groups[region]);
+      }
+
+      const option = document.createElement("option");
+      option.value = r.id;
+      option.textContent = routeLabel(r);
+
+      groups[region].appendChild(option);
+    });
+
+    updateButtons();
+    setStatus(`${routes.length} active routes loaded.`, true);
+  }
+
+  // Initial UI
+  updateButtons();
+  setTimeout(() => map.invalidateSize(), 100);
+  window.addEventListener("resize", () => map.invalidateSize());
+
+  loadRoutes();
+</script>
+</body>
+</html>
