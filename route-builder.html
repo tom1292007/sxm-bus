@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SXM Bus Route Editor</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      color: #17202a;
+    }
+
+    header {
+      background: #102a43;
+      color: #fff;
+      padding: 14px 18px;
+    }
+
+    header h1 {
+      margin: 0 0 5px;
+      font-size: 21px;
+    }
+
+    header p {
+      margin: 0;
+      font-size: 13px;
+      opacity: .86;
+    }
+
+    .toolbar {
+      background: #fff;
+      border-bottom: 1px solid #d9e2ec;
+      padding: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+    }
+
+    select, button {
+      border: 1px solid #bcccdc;
+      border-radius: 7px;
+      background: #fff;
+      padding: 10px 12px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    select {
+      min-width: 330px;
+    }
+
+    button:hover {
+      background: #f0f4f8;
+    }
+
+    button.primary {
+      background: #1565c0;
+      border-color: #1565c0;
+      color: #fff;
+    }
+
+    button.success {
+      background: #2e7d32;
+      border-color: #2e7d32;
+      color: #fff;
+    }
+
+    button.danger {
+      background: #c62828;
+      border-color: #c62828;
+      color: #fff;
+    }
+
+    button.warning {
+      background: #ef6c00;
+      border-color: #ef6c00;
+      color: #fff;
+    }
+
+    button:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+
+    .info {
+      background: #fff;
+      border-bottom: 1px solid #d9e2ec;
+      padding: 9px 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      font-size: 13px;
+    }
+
+    .status {
+      font-weight: 700;
+    }
+
+    #map {
+      width: 100%;
+      height: calc(100vh - 170px);
+      min-height: 620px;
+    }
+
+    .help {
+      position: absolute;
+      top: 180px;
+      right: 14px;
+      z-index: 900;
+      width: 340px;
+      background: rgba(255,255,255,.97);
+      padding: 13px;
+      border-radius: 10px;
+      box-shadow: 0 3px 18px rgba(0,0,0,.18);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .help strong {
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    .help .step {
+      margin: 4px 0;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .badge-red { background: #c62828; }
+    .badge-green { background: #2e7d32; }
+    .badge-purple { background: #7b1fa2; }
+
+    .legend {
+      position: absolute;
+      left: 12px;
+      bottom: 20px;
+      z-index: 900;
+      background: rgba(255,255,255,.96);
+      padding: 10px 12px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.15);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .leg {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin: 2px 0;
+    }
+
+    .leg-line {
+      width: 28px;
+      border-top: 5px solid #1565c0;
+    }
+
+    .leg-line.cut {
+      border-top-color: #c62828;
+      border-top-style: dashed;
+    }
+
+    .leg-line.replacement {
+      border-top-color: #7b1fa2;
+      border-top-style: dashed;
+    }
+
+    .cut-handle {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 3px solid #fff;
+      box-shadow: 0 1px 6px rgba(0,0,0,.45);
+    }
+
+    .cut-start { background: #c62828; }
+    .cut-end { background: #ef6c00; }
+    .draw-point { background: #7b1fa2; }
+
+    @media (max-width: 900px) {
+      select { min-width: 100%; }
+      .help { display: none; }
+      #map { height: calc(100vh - 250px); }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>SXM Bus Route Editor</h1>
+    <p>Generate with OSRM once, then cut out unwanted sections and draw a replacement route directly on the map.</p>
+  </header>
+
+  <div class="toolbar">
+    <select id="routeSelect">
+      <option value="">Loading routes...</option>
+    </select>
+
+    <button id="buildBtn" class="primary">Build Whole Route with OSRM</button>
+    <button id="editBtn">Edit / Cut Route</button>
+    <button id="drawBtn" class="warning">Draw Replacement</button>
+    <button id="applyBtn" class="success" disabled>Apply Replacement</button>
+    <button id="undoBtn">Undo</button>
+    <button id="resetBtn">Reset Saved Route</button>
+    <button id="saveBtn" class="success">Save Route</button>
+  </div>
+
+  <div class="info">
+    <span>Route points: <b id="pointCount">0</b></span>
+    <span>Distance: <b id="distance">—</b></span>
+    <span>Duration: <b id="duration">—</b></span>
+    <span class="status" id="status">Loading...</span>
+  </div>
+
+  <div id="map"></div>
+
+  <div class="help">
+    <strong>Simple route correction</strong>
+    <div class="step">1. Select a route and make sure the blue route is visible.</div>
+    <div class="step">2. Click <b>Edit / Cut Route</b>.</div>
+    <div class="step">3. Click the blue route where the unwanted section <b>starts</b>. A red marker appears.</div>
+    <div class="step">4. Click the blue route where the unwanted section <b>ends</b>. An orange marker appears.</div>
+    <div class="step">5. Click <b>Draw Replacement</b>.</div>
+    <div class="step">6. Click several points along the <b>correct road</b>. Purple points show your replacement.</div>
+    <div class="step">7. Click <b>Apply Replacement</b>.</div>
+    <div class="step">8. Check the blue route. Repeat if needed.</div>
+    <div class="step">9. Click <b>Save Route</b>.</div>
+    <br>
+    <span class="badge badge-red">DELETE</span>
+    Selected old section<br>
+    <span class="badge badge-purple">REPLACE</span>
+    New section drawn from your clicks
+    <br><br>
+    <b>Tip:</b> You can use the normal OSRM build for the initial route. After that, use the cut/replace workflow for local corrections.
+  </div>
+
+  <div class="legend">
+    <div class="leg"><span class="leg-line"></span>Current route</div>
+    <div class="leg"><span class="leg-line cut"></span>Section being replaced</div>
+    <div class="leg"><span class="leg-line replacement"></span>Replacement section</div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    const SUPABASE_URL = "https://enqyrmpdaxuelqlgevnl.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_J_P6bfidx389dnZJc3H43A_vK3ccYnW";
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const map = L.map("map").setView([18.03, -63.05], 12);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 20,
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
+
+    let routes = [];
+    let selectedRoute = null;
+
+    let savedPoints = [];
+    let savedGeometry = null;
+    let savedDistance = null;
+    let savedDuration = null;
+
+    let workingPoints = [];
+    let workingGeometry = null;
+    let workingDistance = null;
+    let workingDuration = null;
+
+    let editMode = false;
+    let drawMode = false;
+
+    let cutStart = null;
+    let cutEnd = null;
+    let replacementPoints = [];
+
+    let routeLayer = null;
+    let cutLayer = null;
+    let replacementLayer = null;
+    let cutMarkers = [];
+    let replacementMarkers = [];
+
+    let undoStack = [];
+
+    const routeSelect = document.getElementById("routeSelect");
+    const buildBtn = document.getElementById("buildBtn");
+    const editBtn = document.getElementById("editBtn");
+    const drawBtn = document.getElementById("drawBtn");
+    const applyBtn = document.getElementById("applyBtn");
+    const undoBtn = document.getElementById("undoBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const saveBtn = document.getElementById("saveBtn");
+
+    function setStatus(text, ok = false) {
+      const el = document.getElementById("status");
+      el.textContent = text;
+      el.style.color = ok ? "#2e7d32" : "#243b53";
+    }
+
+    function clone(value) {
+      return JSON.parse(JSON.stringify(value));
+    }
+
+    function labelForRoute(r) {
+      const line = r.line_number ? `Line ${r.line_number}` : (r.line_code || "Route");
+      const variant = r.variant ? ` — ${r.variant}` : "";
+      const direction = r.direction ? ` — ${r.direction}` : "";
+      return `${line}${variant}${direction}`;
+    }
+
+    function normalizePoint(p) {
+      if (!p) return null;
+      const lat = Number(p.lat);
+      const lng = Number(p.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      return { lat, lng };
+    }
+
+    function normalizePoints(points) {
+      if (!Array.isArray(points)) return [];
+      return points.map(normalizePoint).filter(Boolean);
+    }
+
+    function clearRouteLayers() {
+      if (routeLayer) {
+        map.removeLayer(routeLayer);
+        routeLayer = null;
+      }
+      if (cutLayer) {
+        map.removeLayer(cutLayer);
+        cutLayer = null;
+      }
+      if (replacementLayer) {
+        map.removeLayer(replacementLayer);
+        replacementLayer = null;
+      }
+    }
+
+    function clearCutMarkers() {
+      cutMarkers.forEach(m => map.removeLayer(m));
+      cutMarkers = [];
+    }
+
+    function clearReplacementMarkers() {
+      replacementMarkers.forEach(m => map.removeLayer(m));
+      replacementMarkers = [];
+    }
+
+    function clearManualGraphics() {
+      clearCutMarkers();
+      clearReplacementMarkers();
+
+      if (window.replacementPreview) {
+        map.removeLayer(window.replacementPreview);
+        window.replacementPreview = null;
+      }
+    }
+
+    function drawWorkingGeometry() {
+      clearRouteLayers();
+
+      if (!workingGeometry) return;
+
+      routeLayer = L.geoJSON(workingGeometry, {
+        style: {
+          color: "#1565c0",
+          weight: 7,
+          opacity: 0.92
+        }
+      }).addTo(map);
+    }
+
+    function updateInfo() {
+      document.getElementById("pointCount").textContent = workingPoints.length;
+
+      document.getElementById("distance").textContent =
+        Number.isFinite(workingDistance)
+          ? `${(workingDistance / 1000).toFixed(2)} km`
+          : "—";
+
+      document.getElementById("duration").textContent =
+        Number.isFinite(workingDuration)
+          ? `${Math.round(workingDuration / 60)} min`
+          : "—";
+    }
+
+    function fitMap() {
+      if (workingGeometry) {
+        const bounds = L.geoJSON(workingGeometry).getBounds();
+        if (bounds.isValid()) map.fitBounds(bounds.pad(0.08));
+      } else if (workingPoints.length) {
+        map.fitBounds(
+          L.latLngBounds(workingPoints.map(p => [p.lat, p.lng])).pad(0.12)
+        );
+      }
+    }
+
+    function pointToXY(p, latRef) {
+      const lat0 = latRef * Math.PI / 180;
+      return {
+        x: p.lng * 111320 * Math.cos(lat0),
+        y: p.lat * 110540
+      };
+    }
+
+    function distanceSqPointToSegment(p, a, b) {
+      const latRef = (p.lat + a.lat + b.lat) / 3;
+      const P = pointToXY(p, latRef);
+      const A = pointToXY(a, latRef);
+      const B = pointToXY(b, latRef);
+
+      const dx = B.x - A.x;
+      const dy = B.y - A.y;
+      const len2 = dx * dx + dy * dy;
+
+      let t = 0;
+      if (len2 > 0) {
+        t = ((P.x - A.x) * dx + (P.y - A.y) * dy) / len2;
+        t = Math.max(0, Math.min(1, t));
+      }
+
+      const cx = A.x + t * dx;
+      const cy = A.y + t * dy;
+      return (P.x - cx) ** 2 + (P.y - cy) ** 2;
+    }
+
+    function nearestPointOnGeometry(latlng) {
+      if (!workingGeometry || workingGeometry.type !== "LineString") return null;
+
+      const coords = workingGeometry.coordinates || [];
+      if (coords.length < 2) return null;
+
+      const target = { lat: latlng.lat, lng: latlng.lng };
+
+      let best = {
+        segmentIndex: -1,
+        vertexIndex: -1,
+        distanceSq: Infinity,
+        point: null
+      };
+
+      for (let i = 0; i < coords.length - 1; i++) {
+        const a = { lat: coords[i][1], lng: coords[i][0] };
+        const b = { lat: coords[i + 1][1], lng: coords[i + 1][0] };
+
+        const latRef = (target.lat + a.lat + b.lat) / 3;
+        const P = pointToXY(target, latRef);
+        const A = pointToXY(a, latRef);
+        const B = pointToXY(b, latRef);
+
+        const dx = B.x - A.x;
+        const dy = B.y - A.y;
+        const len2 = dx * dx + dy * dy;
+
+        let t = 0;
+        if (len2 > 0) {
+          t = ((P.x - A.x) * dx + (P.y - A.y) * dy) / len2;
+          t = Math.max(0, Math.min(1, t));
+        }
+
+        const cx = A.x + t * dx;
+        const cy = A.y + t * dy;
+        const d2 = (P.x - cx) ** 2 + (P.y - cy) ** 2;
+
+        if (d2 < best.distanceSq) {
+          best = {
+            segmentIndex: i,
+            vertexIndex: t < 0.5 ? i : i + 1,
+            distanceSq: d2,
+            point: {
+              lat: a.lat + t * (b.lat - a.lat),
+              lng: a.lng + t * (b.lng - a.lng)
+            }
+          };
+        }
+      }
+
+      return best;
+    }
+
+    function geometryNearestVertexIndex(latlng) {
+      const hit = nearestPointOnGeometry(latlng);
+      return hit ? hit.vertexIndex : -1;
+    }
+
+    function markerIcon(kind) {
+      const cls =
+        kind === "start" ? "cut-handle cut-start" :
+        kind === "end" ? "cut-handle cut-end" :
+        "cut-handle draw-point";
+
+      return L.divIcon({
+        className: "",
+        html: `<div class="${cls}"></div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+      });
+    }
+
+    function showCutMarker(point, kind) {
+      const marker = L.marker([point.lat, point.lng], {
+        icon: markerIcon(kind)
+      }).addTo(map);
+
+      cutMarkers.push(marker);
+      return marker;
+    }
+
+    function showReplacementMarker(point) {
+      const marker = L.marker([point.lat, point.lng], {
+        icon: markerIcon("draw")
+      }).addTo(map);
+
+      replacementMarkers.push(marker);
+      return marker;
+    }
+
+    function updateCutPreview() {
+      if (cutLayer) {
+        map.removeLayer(cutLayer);
+        cutLayer = null;
+      }
+
+      if (!workingGeometry || !cutStart || !cutEnd) return;
+
+      const coords = workingGeometry.coordinates || [];
+      const s = Math.min(cutStart.vertexIndex, cutEnd.vertexIndex);
+      const e = Math.max(cutStart.vertexIndex, cutEnd.vertexIndex);
+
+      if (e <= s) return;
+
+      const section = coords.slice(s, e + 1);
+      if (section.length < 2) return;
+
+      cutLayer = L.polyline(
+        section.map(c => [c[1], c[0]]),
+        {
+          color: "#c62828",
+          weight: 10,
+          opacity: 0.72,
+          dashArray: "12 9"
+        }
+      ).addTo(map);
+    }
+
+    function updateReplacementPreview() {
+      if (window.replacementPreview) {
+        map.removeLayer(window.replacementPreview);
+        window.replacementPreview = null;
+      }
+
+      if (!cutStart || !cutEnd || replacementPoints.length === 0) return;
+
+      const latLngs = [
+        [cutStart.point.lat, cutStart.point.lng],
+        ...replacementPoints.map(p => [p.lat, p.lng]),
+        [cutEnd.point.lat, cutEnd.point.lng]
+      ];
+
+      window.replacementPreview = L.polyline(latLngs, {
+        color: "#7b1fa2",
+        weight: 6,
+        opacity: 0.9,
+        dashArray: "9 7"
+      }).addTo(map);
+    }
+
+    function updateApplyState() {
+      applyBtn.disabled =
+        !(cutStart && cutEnd && replacementPoints.length >= 1);
+    }
+
+    function pushUndo() {
+      undoStack.push({
+        workingPoints: clone(workingPoints),
+        workingGeometry: clone(workingGeometry),
+        workingDistance,
+        workingDuration
+      });
+
+      if (undoStack.length > 25) undoStack.shift();
+    }
+
+    function resetModes() {
+      editMode = false;
+      drawMode = false;
+      cutStart = null;
+      cutEnd = null;
+      replacementPoints = [];
+
+      clearManualGraphics();
+
+      editBtn.classList.remove("primary");
+      drawBtn.classList.remove("primary");
+      editBtn.textContent = "Edit / Cut Route";
+      drawBtn.textContent = "Draw Replacement";
+
+      updateApplyState();
+    }
+
+    function beginEditMode() {
+      if (!workingGeometry) {
+        setStatus("Load or build a route first.");
+        return;
+      }
+
+      resetModes();
+      editMode = true;
+      editBtn.classList.add("primary");
+      editBtn.textContent = "Cut Selection: ON";
+
+      setStatus(
+        "Click the existing blue route where the unwanted section STARTS."
+      );
+    }
+
+    editBtn.addEventListener("click", beginEditMode);
+
+    drawBtn.addEventListener("click", () => {
+      if (!workingGeometry) {
+        setStatus("Load or build a route first.");
+        return;
+      }
+
+      if (!cutStart || !cutEnd) {
+        setStatus("First select the unwanted section start and end.");
+        return;
+      }
+
+      editMode = false;
+      drawMode = !drawMode;
+
+      drawBtn.classList.toggle("primary", drawMode);
+      drawBtn.textContent = drawMode ? "Drawing: ON" : "Draw Replacement";
+
+      editBtn.classList.remove("primary");
+      editBtn.textContent = "Edit / Cut Route";
+
+      setStatus(
+        drawMode
+          ? "Click several points along the CORRECT road."
+          : "Replacement drawing stopped."
+      );
+    });
+
+    map.on("click", e => {
+      if (editMode) {
+        const hit = nearestPointOnGeometry(e.latlng);
+
+        if (!hit) {
+          setStatus("Click directly on the blue route.");
+          return;
+        }
+
+        if (!cutStart) {
+          cutStart = {
+            vertexIndex: hit.vertexIndex,
+            point: hit.point
+          };
+
+          showCutMarker(hit.point, "start");
+          updateCutPreview();
+
+          setStatus(
+            "Start selected. Now click the blue route where the unwanted section ENDS."
+          );
+          return;
+        }
+
+        const second = {
+          vertexIndex: hit.vertexIndex,
+          point: hit.point
+        };
+
+        if (second.vertexIndex === cutStart.vertexIndex) {
+          setStatus("Choose a different point for the end.");
+          return;
+        }
+
+        if (second.vertexIndex < cutStart.vertexIndex) {
+          const temp = cutStart;
+          cutStart = second;
+          cutEnd = temp;
+        } else {
+          cutEnd = second;
+        }
+
+        clearCutMarkers();
+
+        showCutMarker(cutStart.point, "start");
+        showCutMarker(cutEnd.point, "end");
+
+        editMode = false;
+        editBtn.classList.remove("primary");
+        editBtn.textContent = "Edit / Cut Route";
+
+        updateCutPreview();
+
+        setStatus(
+          "Section selected. Click Draw Replacement, then click points along the correct road."
+        );
+        return;
+      }
+
+      if (drawMode) {
+        const p = {
+          lat: e.latlng.lat,
+          lng: e.latlng.lng
+        };
+
+        replacementPoints.push(p);
+        showReplacementMarker(p);
+        updateReplacementPreview();
+        updateApplyState();
+
+        setStatus(
+          `${replacementPoints.length} replacement point(s). Add more along the correct road, then click Apply Replacement.`
+        );
+      }
+    });
+
+    function routeSectionFromGeometry(startIndex, endIndex) {
+      const coords = workingGeometry.coordinates || [];
+      const s = Math.min(startIndex, endIndex);
+      const e = Math.max(startIndex, endIndex);
+
+      return {
+        type: "LineString",
+        coordinates: coords.slice(s, e + 1)
+      };
+    }
+
+    function spliceGeometry(base, startIndex, endIndex, replacement) {
+      const coords = base.coordinates || [];
+      const s = Math.min(startIndex, endIndex);
+      const e = Math.max(startIndex, endIndex);
+
+      const replacementCoords = replacement.coordinates || [];
+
+      const before = coords.slice(0, s + 1);
+      const after = coords.slice(e);
+
+      const merged = [
+        ...before,
+        ...replacementCoords,
+        ...after
+      ];
+
+      const cleaned = [];
+      for (const c of merged) {
+        const previous = cleaned[cleaned.length - 1];
+        if (!previous || previous[0] !== c[0] || previous[1] !== c[1]) {
+          cleaned.push(c);
+        }
+      }
+
+      return {
+        type: "LineString",
+        coordinates: cleaned
+      };
+    }
+
+    function geometryLengthMeters(geometry) {
+      if (!geometry || geometry.type !== "LineString") return 0;
+
+      const coords = geometry.coordinates || [];
+      let total = 0;
+
+      for (let i = 1; i < coords.length; i++) {
+        const a = {
+          lat: coords[i - 1][1],
+          lng: coords[i - 1][0]
+        };
+
+        const b = {
+          lat: coords[i][1],
+          lng: coords[i][0]
+        };
+
+        const R = 6371000;
+        const p1 = a.lat * Math.PI / 180;
+        const p2 = b.lat * Math.PI / 180;
+        const dp = (b.lat - a.lat) * Math.PI / 180;
+        const dl = (b.lng - a.lng) * Math.PI / 180;
+
+        const x =
+          Math.sin(dp / 2) ** 2 +
+          Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+
+        total += 2 * R * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+      }
+
+      return total;
+    }
+
+    async function buildOSRM(points) {
+      if (!Array.isArray(points) || points.length < 2) {
+        throw new Error("At least two points are required.");
+      }
+
+      const coords = points
+        .map(p => `${p.lng},${p.lat}`)
+        .join(";");
+
+      const url =
+        `https://router.project-osrm.org/route/v1/driving/${coords}` +
+        `?overview=full&geometries=geojson&steps=false&continue_straight=true`;
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(`OSRM HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.code !== "Ok" || !data.routes?.length) {
+        throw new Error(data.message || "OSRM could not create a route.");
+      }
+
+      return data.routes[0];
+    }
+
+    applyBtn.addEventListener("click", async () => {
+      if (!cutStart || !cutEnd || replacementPoints.length < 1) {
+        alert("Select a start, end, and at least one replacement point.");
+        return;
+      }
+
+      pushUndo();
+
+      drawMode = false;
+      drawBtn.classList.remove("primary");
+      drawBtn.textContent = "Draw Replacement";
+
+      setStatus("Building the replacement section...");
+
+      const routingPoints = [
+        cutStart.point,
+        ...replacementPoints,
+        cutEnd.point
+      ];
+
+      try {
+        const route = await buildOSRM(routingPoints);
+
+        const oldSection = routeSectionFromGeometry(
+          cutStart.vertexIndex,
+          cutEnd.vertexIndex
+        );
+
+        const oldDistance = geometryLengthMeters(oldSection);
+        const newDistance = Number(route.distance);
+
+        const oldTotalDistance =
+          Number.isFinite(workingDistance)
+            ? workingDistance
+            : geometryLengthMeters(workingGeometry);
+
+        const oldTotalDuration = workingDuration;
+
+        workingGeometry = spliceGeometry(
+          workingGeometry,
+          cutStart.vertexIndex,
+          cutEnd.vertexIndex,
+          route.geometry
+        );
+
+        workingDistance = geometryLengthMeters(workingGeometry);
+
+        if (
+          Number.isFinite(oldTotalDuration) &&
+          Number.isFinite(oldTotalDistance) &&
+          oldTotalDistance > 0
+        ) {
+          const averageMps = oldTotalDuration / oldTotalDistance;
+
+          // Preserve the route's previous average speed while changing only
+          // the duration contribution of the replaced section.
+          const deltaDistance = newDistance - oldDistance;
+          workingDuration = Math.max(
+            0,
+            oldTotalDuration + deltaDistance / Math.max(averageMps, 0.1)
+          );
+        } else {
+          workingDuration = Number(route.duration);
+        }
+
+        // Keep route points broadly consistent with the new correction.
+        const prefix = workingPoints.slice(
+          0,
+          Math.min(workingPoints.length, Math.max(0, cutStart.vertexIndex + 1))
+        );
+        const suffix = workingPoints.slice(
+          Math.min(workingPoints.length, Math.max(0, cutEnd.vertexIndex))
+        );
+
+        workingPoints = [
+          ...prefix,
+          cutStart.point,
+          ...replacementPoints,
+          cutEnd.point,
+          ...suffix
+        ];
+
+        // Deduplicate nearby points so repeated corrections don't explode the list.
+        const compact = [];
+        for (const p of workingPoints) {
+          const last = compact[compact.length - 1];
+          if (!last) {
+            compact.push(p);
+            continue;
+          }
+
+          const d = Math.sqrt(
+            ((p.lat - last.lat) * 110540) ** 2 +
+            ((p.lng - last.lng) * 111320 *
+              Math.cos(((p.lat + last.lat) / 2) * Math.PI / 180)) ** 2
+          );
+
+          if (d > 3) compact.push(p);
+        }
+
+        workingPoints = compact;
+
+        clearManualGraphics();
+
+        cutStart = null;
+        cutEnd = null;
+        replacementPoints = [];
+
+        updateApplyState();
+        drawWorkingGeometry();
+        updateInfo();
+
+        setStatus(
+          "Replacement applied. Inspect the blue route, then save it.",
+          true
+        );
+      } catch (error) {
+        console.error(error);
+        setStatus(`Replacement failed: ${error.message}`);
+        alert(`Replacement failed:\n${error.message}`);
+      }
+    });
+
+    buildBtn.addEventListener("click", async () => {
+      if (!selectedRoute) {
+        alert("Select a route first.");
+        return;
+      }
+
+      if (workingPoints.length < 2) {
+        alert("This route does not have enough waypoints to rebuild.");
+        return;
+      }
+
+      pushUndo();
+      resetModes();
+
+      setStatus("Building the entire route with OSRM...");
+
+      try {
+        const route = await buildOSRM(workingPoints);
+
+        workingGeometry = route.geometry;
+        workingDistance = Number(route.distance);
+        workingDuration = Number(route.duration);
+
+        drawWorkingGeometry();
+        updateInfo();
+        fitMap();
+
+        setStatus(
+          "Whole route rebuilt with OSRM. Use Edit / Cut Route for any corrections.",
+          true
+        );
+      } catch (error) {
+        console.error(error);
+        setStatus(`OSRM build failed: ${error.message}`);
+        alert(`OSRM build failed:\n${error.message}`);
+      }
+    });
+
+    undoBtn.addEventListener("click", () => {
+      if (!undoStack.length) {
+        setStatus("Nothing to undo.");
+        return;
+      }
+
+      const state = undoStack.pop();
+
+      workingPoints = state.workingPoints;
+      workingGeometry = state.workingGeometry;
+      workingDistance = state.workingDistance;
+      workingDuration = state.workingDuration;
+
+      resetModes();
+      drawWorkingGeometry();
+      updateInfo();
+
+      setStatus("Last route edit undone.");
+    });
+
+    resetBtn.addEventListener("click", () => {
+      if (!selectedRoute) {
+        alert("Select a route first.");
+        return;
+      }
+
+      if (!confirm("Reset this route to its last saved version?")) {
+        return;
+      }
+
+      undoStack = [];
+      workingPoints = clone(savedPoints);
+      workingGeometry = clone(savedGeometry);
+      workingDistance = savedDistance;
+      workingDuration = savedDuration;
+
+      resetModes();
+      drawWorkingGeometry();
+      updateInfo();
+      fitMap();
+
+      setStatus("Reset to saved route.");
+    });
+
+    routeSelect.addEventListener("change", () => {
+      const id = Number(routeSelect.value);
+
+      selectedRoute = routes.find(r => Number(r.id) === id) || null;
+
+      if (!selectedRoute) return;
+
+      undoStack = [];
+      resetModes();
+
+      savedPoints = normalizePoints(selectedRoute.route_points);
+      workingPoints = clone(savedPoints);
+
+      savedGeometry = selectedRoute.road_geometry
+        ? clone(selectedRoute.road_geometry)
+        : null;
+
+      workingGeometry = clone(savedGeometry);
+
+      savedDistance = Number.isFinite(Number(selectedRoute.road_distance_meters))
+        ? Number(selectedRoute.road_distance_meters)
+        : null;
+
+      savedDuration = Number.isFinite(Number(selectedRoute.road_duration_seconds))
+        ? Number(selectedRoute.road_duration_seconds)
+        : null;
+
+      workingDistance = savedDistance;
+      workingDuration = savedDuration;
+
+      drawWorkingGeometry();
+      updateInfo();
+
+      setStatus(`Loaded ${labelForRoute(selectedRoute)}.`);
+
+      fitMap();
+    });
+
+    async function loadRoutes() {
+      setStatus("Loading routes...");
+
+      const { data, error } = await supabaseClient
+        .from("routes")
+        .select(`
+          id,
+          route_name,
+          direction,
+          region,
+          line_number,
+          line_code,
+          variant,
+          origin,
+          destination,
+          route_points,
+          road_geometry,
+          road_distance_meters,
+          road_duration_seconds,
+          active
+        `)
+        .eq("active", true)
+        .order("region", { ascending: true })
+        .order("line_number", { ascending: true })
+        .order("variant", { ascending: true })
+        .order("direction", { ascending: true });
+
+      if (error) {
+        console.error(error);
+        routeSelect.innerHTML = `<option value="">Route loading failed</option>`;
+        setStatus(`Supabase error: ${error.message}`);
+        return;
+      }
+
+      routes = data || [];
+      routeSelect.innerHTML = `<option value="">Select a route...</option>`;
+
+      const groups = {};
+
+      routes.forEach(r => {
+        const region = r.region || "Other";
+
+        if (!groups[region]) {
+          const group = document.createElement("optgroup");
+          group.label = region;
+          groups[region] = group;
+          routeSelect.appendChild(group);
+        }
+
+        const option = document.createElement("option");
+        option.value = r.id;
+        option.textContent = labelForRoute(r);
+
+        groups[region].appendChild(option);
+      });
+
+      setStatus(`${routes.length} active routes loaded.`, true);
+    }
+
+    saveBtn.addEventListener("click", async () => {
+      if (!selectedRoute) {
+        alert("Select a route first.");
+        return;
+      }
+
+      if (!workingGeometry) {
+        alert("There is no route geometry to save.");
+        return;
+      }
+
+      if (!workingPoints.length || workingPoints.length < 2) {
+        alert("The route needs at least two route points.");
+        return;
+      }
+
+      if (!confirm(
+        `Save this corrected route?\n\n${labelForRoute(selectedRoute)}\n\n` +
+        `This will replace the saved route geometry in Supabase.`
+      )) return;
+
+      setStatus("Saving corrected route...");
+
+      const { error } = await supabaseClient
+        .from("routes")
+        .update({
+          route_points: workingPoints,
+          road_geometry: workingGeometry,
+          road_distance_meters: workingDistance,
+          road_duration_seconds: workingDuration
+        })
+        .eq("id", selectedRoute.id);
+
+      if (error) {
+        console.error(error);
+        setStatus(`Save failed: ${error.message}`);
+        alert(`Save failed:\n${error.message}`);
+        return;
+      }
+
+      savedPoints = clone(workingPoints);
+      savedGeometry = clone(workingGeometry);
+      savedDistance = workingDistance;
+      savedDuration = workingDuration;
+      undoStack = [];
+
+      setStatus("Corrected route saved successfully.", true);
+      alert("Corrected route saved to Supabase.");
+    });
+
+    loadRoutes();
+  </script>
+</body>
+</html>
