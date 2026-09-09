@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>SXM Bus</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <style>
+    :root{--bg:#f5f8fc;--card:#fff;--text:#112033;--muted:#65758b;--border:#dce4ee;--accent:#2563eb;}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,Arial,sans-serif}
+    header{background:#0c1728;color:white;padding:16px 16px 14px;position:sticky;top:0;z-index:1001}.title-row{display:flex;align-items:center;justify-content:space-between;gap:10px}.brand{font-size:22px;font-weight:800}.tag{font-size:11px;background:rgba(255,255,255,.1);padding:6px 9px;border-radius:999px}.sub{font-size:12px;color:#b7c4d6;margin-top:3px}
+    #map{height:52vh;min-height:370px}.panel{max-width:1000px;margin:0 auto;padding:12px}.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:12px;margin-bottom:10px;box-shadow:0 2px 10px rgba(15,23,42,.04)}
+    button{border:0;border-radius:11px;padding:11px 13px;font-weight:700;cursor:pointer} .primary{background:var(--accent);color:#fff}.secondary{background:#edf3fb;color:#173252}.full{width:100%}
+    .gps-row{display:flex;gap:8px;align-items:center}.gps-status{font-size:12px;color:var(--muted)}.route-choice{display:flex;align-items:center;gap:9px;font-size:13px;margin-bottom:7px}.dot{width:18px;height:5px;border-radius:99px;flex:0 0 18px}
+    .nearby-title{display:flex;align-items:center;justify-content:space-between;gap:8px}.small{font-size:11px;color:var(--muted)}.bus{border:1px solid var(--border);border-radius:12px;padding:10px;margin-top:8px;display:flex;justify-content:space-between;gap:10px;align-items:center}.bus-main{min-width:0}.bus-id{font-weight:800}.bus-route{font-size:12px;color:var(--muted);margin-top:3px}.eta{font-size:19px;font-weight:800;white-space:nowrap}.eta span{display:block;font-size:10px;color:var(--muted);font-weight:600;text-align:right}.note{font-size:12px;color:var(--muted);line-height:1.45;margin-top:8px}.error{color:#b91c1c;background:#fef2f2;border-color:#fecaca}.legend{display:flex;flex-wrap:wrap;gap:8px}.legend-item{font-size:11px;display:flex;align-items:center;gap:5px;background:#f4f7fb;border-radius:999px;padding:6px 8px}
+    .leaflet-popup-content{margin:10px}.popup-title{font-weight:800}.popup-meta{font-size:12px;line-height:1.5;margin-top:4px}
+    @media(min-width:900px){#map{height:58vh}.panel{padding:14px}.desktop-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}}
+  </style>
+</head>
+<body>
+<header><div class="title-row"><div><div class="brand">🚌 SXM Bus</div><div class="sub">Find the next bus near you</div></div><div class="tag">Live</div></div></header>
+<div id="map"></div>
+<div class="panel">
+  <div class="card">
+    <div class="gps-row"><button class="primary" id="locateBtn">Use My Location</button><div class="gps-status" id="gpsStatus">Location not yet selected</div></div>
+    <div class="note">There are no fixed bus stops. The app uses your current location as your pickup point and finds nearby buses on the correct route.</div>
+  </div>
+  <div class="desktop-grid">
+    <div class="card"><div class="nearby-title"><b>Nearby buses</b><span class="small" id="nearbyHint">Allow location for ETAs</span></div><div id="busResults"><div class="small" style="margin-top:8px">Waiting for live buses…</div></div></div>
+    <div class="card"><div class="nearby-title"><b>Routes</b><span class="small">Colors match the map</span></div><div class="legend" id="legend"></div></div>
+  </div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL='https://enqyrmpdaxuelqlgevnl.supabase.co';
+const SUPABASE_KEY='sb_publishable_J_P6bfidx389dnZJc3H43A_vK3ccYnW';
+const db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const LINE_COLORS={L1:'#2563eb',L2:'#16a34a',L3:'#dc2626',L4:'#ea580c',L5:'#7c3aed',F1:'#0891b2',F2:'#db2777',F3:'#92400e',F4:'#475569'};
+const LINE_OFFSETS={L1:-16,L2:-8,L3:0,L4:8,L5:16,F1:-16,F2:-8,F3:8,F4:16};
+let map,routes=[],buses=[],markers=new Map(),routeLayers=new Map(),userMarker=null,userLatLng=null;
+
+function colorForRoute(r){return LINE_COLORS[r.line_code]||'#334155'}
+function geom(r){const g=r?.road_geometry;if(!g)return[];if(g.type==='Feature')return g.geometry?.coordinates||[];if(g.type==='LineString')return g.coordinates||[];return[]}
+function latLngs(r){return geom(r).map(c=>[c[1],c[0]])}
+function offsetLatLngs(points,meters){if(!meters||points.length<2)return points;const lat0=points.reduce((a,p)=>a+p[0],0)/points.length*Math.PI/180,mLat=111320,mLng=111320*Math.cos(lat0),xy=points.map(p=>({x:p[1]*mLng,y:p[0]*mLat})),out=[];for(let i=0;i<xy.length;i++){const a=xy[Math.max(0,i-1)],b=xy[Math.min(xy.length-1,i+1)];let dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy)||1;const nx=-dy/len,ny=dx/len;out.push([(xy[i].y+ny*meters)/mLat,(xy[i].x+nx*meters)/mLng])}return out}
+function routeName(r){return r.variant?`${r.route_name} · ${r.variant}`:r.route_name||'Route'}
+function initMap(){map=L.map('map',{preferCanvas:true}).setView([18.04,-63.06],12);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map)}
+function drawRoutes(){routeLayers.forEach(x=>map.removeLayer(x));routeLayers.clear();routes.forEach(r=>{const pts=latLngs(r);if(pts.length<2)return;const dp=offsetLatLngs(pts,LINE_OFFSETS[r.line_code]??0),color=colorForRoute(r);const halo=L.polyline(dp,{color:'#fff',weight:9,opacity:.9,interactive:false});const line=L.polyline(dp,{color,weight:5,opacity:.83,lineCap:'round',lineJoin:'round'}).addTo(map);L.layerGroup([halo,line]).addTo(map);line.bindTooltip(routeName(r),{sticky:true});routeLayers.set(r.id,line)})}
+function buildLegend(){const seen=new Set(),el=document.getElementById('legend');el.innerHTML='';routes.forEach(r=>{const code=r.line_code||'';if(seen.has(code))return;seen.add(code);const d=document.createElement('div');d.className='legend-item';d.innerHTML=`<span class="dot" style="background:${colorForRoute(r)}"></span>${code} — Line ${r.line_number||''}`;el.appendChild(d)})}
+function hav(a,b,c,d){const R=6371000,p=Math.PI/180,A=a*p,C=c*p,da=(c-a)*p,db=(d-b)*p;const x=Math.sin(da/2)**2+Math.cos(A)*Math.cos(C)*Math.sin(db/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
+function nearestPointOnRoute(lat,lng,r){const pts=latLngs(r);if(pts.length<2)return{distance:Infinity,progress:0};let best={distance:Infinity,progress:0};let cumulative=0;for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1];const lat0=((a[0]+b[0])/2)*Math.PI/180,mx=111320*Math.cos(lat0),my=111320;const ax=a[1]*mx,ay=a[0]*my,bx=b[1]*mx,by=b[0]*my,px=lng*mx,py=lat*my;const dx=bx-ax,dy=by-ay,len2=dx*dx+dy*dy;let t=len2?((px-ax)*dx+(py-ay)*dy)/len2:0;t=Math.max(0,Math.min(1,t));const qx=ax+t*dx,qy=ay+t*dy;const qlat=qy/my,qlng=qx/mx,d=hav(lat,lng,qlat,qlng);const seg=hav(a[0],a[1],b[0],b[1]);if(d<best.distance)best={distance:d,progress:cumulative+t*seg};cumulative+=seg}return best}
+function busOnline(b){return b.is_active===true && b.last_seen && (Date.now()-new Date(b.last_seen).getTime()<60000)}
+function routeForBus(b){return routes.find(r=>Number(r.id)===Number(b.route_id))||routes.find(r=>r.line_code===b.line_code&&r.variant===b.variant&&r.direction===b.direction)||null}
+function estimateEta(bus,r){
+  if(!userLatLng||!r)return{min:null,dist:null};
+  const passenger=nearestPointOnRoute(userLatLng[0],userLatLng[1],r), busProg=Number(bus.route_progress_meters);
+  if(!Number.isFinite(busProg)||passenger.distance>400){return{min:null,dist:null,walking:passenger.distance}};
+  const delta=passenger.progress-busProg;
+  if(delta< -100){return{min:null,dist:delta}}
+  const speedMs=Math.max(4,Math.min(16,Number(bus.speed)||7));
+  return{min:Math.max(0.5,delta/speedMs/60),dist:Math.max(0,delta)}
+}
+function refreshBusMarkers(){const active=new Set();buses.forEach(b=>{if(!Number.isFinite(Number(b.latitude))||!Number.isFinite(Number(b.longitude)))return;const r=routeForBus(b),color=r?colorForRoute(r):'#475569',id=b.bus_id;active.add(id);const html=`<div style="width:46px;height:30px;border-radius:9px;border:3px solid white;background:${color};box-shadow:0 2px 9px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:11px">🚌 ${(id||'?').replace(/^BUS_/i,'')}</div>`,icon=L.divIcon({className:'',iconSize:[46,34],iconAnchor:[23,17],html});let m=markers.get(id);if(!m){m=L.marker([b.latitude,b.longitude],{icon,zIndexOffset:1000}).addTo(map);markers.set(id,m)}else{m.setLatLng([b.latitude,b.longitude]);m.setIcon(icon)}m.bindPopup(`<div class="popup-title" style="color:${color}">${id}</div><div class="popup-meta">${r?routeName(r):'No route'}<br>${r?.direction||b.direction||''}<br>Speed: ${Number.isFinite(Number(b.speed))?(Number(b.speed)*3.6).toFixed(0)+' km/h':'—'}<br>Last update: ${b.last_seen?new Date(b.last_seen).toLocaleTimeString():''}</div>`)}) ;[...markers.keys()].forEach(id=>{if(!active.has(id)){map.removeLayer(markers.get(id));markers.delete(id)}})}
+function renderResults(){const el=document.getElementById('busResults');if(!userLatLng){el.innerHTML='<div class="small" style="margin-top:8px">Tap “Use My Location” to find buses approaching your position.</div>';document.getElementById('nearbyHint').textContent='Allow location for ETAs';return}
+ const candidates=[];for(const b of buses){if(!busOnline(b))continue;const r=routeForBus(b);if(!r)continue;const eta=estimateEta(b,r);if(eta.min!==null)candidates.push({b,r,eta})}
+ candidates.sort((a,b)=>a.eta.min-b.eta.min);document.getElementById('nearbyHint').textContent=candidates.length?`${candidates.length} approaching bus${candidates.length===1?'':'es'}`:'No approaching buses yet';
+ if(!candidates.length){el.innerHTML='<div class="small" style="margin-top:8px">No active bus is currently approaching your location. Make sure GPS is accurate and try again.</div>';return}
+ el.innerHTML=candidates.slice(0,8).map(x=>{const color=colorForRoute(x.r),mins=x.eta.min<1?'<1':Math.round(x.eta.min);return `<div class="bus"><div class="bus-main"><div class="bus-id" style="color:${color}">${x.b.bus_id}</div><div class="bus-route">${routeName(x.r)}<br>${x.r.direction||''}</div></div><div class="eta">${mins}<span>min ETA</span></div></div>`}).join('');
+}
+async function loadData(){const [rr,bb]=await Promise.all([db.from('routes').select('*').eq('active',true).order('region').order('line_number').order('variant').order('direction'),db.from('bus_locations').select('*').order('bus_id')]);if(rr.error)throw rr.error;if(bb.error)throw bb.error;routes=rr.data||[];buses=bb.data||[];buildLegend();drawRoutes();refreshBusMarkers();renderResults()}
+function requestLocation(){const status=document.getElementById('gpsStatus');if(!navigator.geolocation){status.textContent='Geolocation is not supported';return}status.textContent='Requesting GPS…';navigator.geolocation.getCurrentPosition(pos=>{userLatLng=[pos.coords.latitude,pos.coords.longitude];status.textContent=`GPS ±${Math.round(pos.coords.accuracy)} m`;if(userMarker)map.removeLayer(userMarker);userMarker=L.marker(userLatLng,{title:'Your location'}).addTo(map).bindPopup('You are here').openPopup();map.setView(userLatLng,15,{animate:true});renderResults()},err=>{status.textContent=err.message||'Could not get location'},{enableHighAccuracy:true,timeout:10000,maximumAge:10000})}
+
+initMap();document.getElementById('locateBtn').onclick=requestLocation;loadData().catch(e=>{console.error(e);document.getElementById('gpsStatus').textContent='Database connection error';});setInterval(()=>loadData().catch(console.error),5000);
+</script>
+</body>
+</html>
