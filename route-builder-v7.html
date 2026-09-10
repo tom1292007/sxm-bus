@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SXM Bus Route Builder V7</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;font-family:Arial,sans-serif;background:#f4f6f8;color:#17202a}
+header{background:#102a43;color:#fff;padding:12px 16px}header h1{margin:0 0 3px;font-size:20px}header p{margin:0;font-size:12px;opacity:.92}
+.toolbar{position:sticky;top:0;z-index:1300;display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:#fff;border-bottom:1px solid #d9e2ec}
+select,button,input{font:inherit;font-size:12px}select,button{padding:8px 10px;border-radius:7px;border:1px solid #bcccdc;background:#fff;cursor:pointer}select{min-width:330px}button:hover:not(:disabled){background:#f0f4f8}button:disabled{opacity:.45;cursor:not-allowed}
+.primary{background:#1565c0!important;border-color:#1565c0!important;color:#fff!important}.danger{background:#c62828!important;border-color:#c62828!important;color:#fff!important}.warning{background:#ef6c00!important;border-color:#ef6c00!important;color:#fff!important}.success{background:#2e7d32!important;border-color:#2e7d32!important;color:#fff!important}.secondary{background:#455a64!important;border-color:#455a64!important;color:#fff!important}
+.info{display:flex;flex-wrap:wrap;gap:10px 16px;padding:7px 12px;background:#fff;border-bottom:1px solid #d9e2ec;font-size:11px}.status{font-weight:700}.state-badge{font-weight:700;padding:2px 7px;border-radius:99px;background:#e8eef5}.state-unsaved{background:#fff3cd;color:#7a4f00}.state-gap{background:#ffe0e0;color:#9c1d1d}.state-published{background:#dff3df;color:#216621}
+#map{width:100%;height:calc(100vh - 139px);min-height:560px}.panel{position:absolute;top:151px;right:12px;z-index:1000;width:380px;max-height:calc(100vh - 175px);overflow:auto;padding:12px;background:rgba(255,255,255,.97);border-radius:10px;box-shadow:0 3px 18px rgba(0,0,0,.18);font-size:12px;line-height:1.45}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}.panel h3{margin:0;font-size:15px}.panel-actions{display:flex;gap:4px}.panel-actions button{min-width:30px;padding:5px 8px;line-height:1}.panel.collapsed .panel-body{display:none}.panel.hidden{display:none}.help-open-btn{position:absolute;top:151px;right:12px;z-index:1001;display:none;padding:8px 11px;border-radius:8px;border:1px solid #bcccdc;background:#fff;box-shadow:0 3px 14px rgba(0,0,0,.18);font-weight:700}.panel.hidden + .help-open-btn{display:block}
+.notice{display:none;margin:0 8px 7px;padding:8px 10px;border-radius:7px;font-size:11px;font-weight:700}.notice.info{display:block;background:#eef5ff;border:1px solid #9ec5fe;color:#194b7a}.notice.warn{display:block;background:#fff4e5;border:1px solid #f3c26b;color:#6b4200}.notice.danger{display:block;background:#ffe9e9;border:1px solid #ee9f9f;color:#8d1f1f}.notice.success{display:block;background:#e8f5e8;border:1px solid #9dcc9d;color:#245d24}
+.settings{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 12px;background:#f8fafc;border-bottom:1px solid #d9e2ec;font-size:11px}.settings .group{display:flex;align-items:center;gap:6px}.settings input[type=range]{width:150px}.kbd{padding:1px 5px;border:1px solid #bcccdc;border-radius:4px;background:#fff;font-family:monospace}
+.legend{position:absolute;bottom:18px;left:12px;z-index:1000;background:rgba(255,255,255,.96);padding:8px 10px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.15);font-size:10px}.legend-row{display:flex;align-items:center;gap:7px;margin:3px 0}.legend-line{width:28px;border-top:6px solid #1565c0}.legend-cut{width:28px;border-top:8px dashed #c62828}.legend-replace{width:28px;border-top:6px dashed #7b1fa2}.legend-osrm{width:28px;border-top:4px dashed #607d8b}.legend-vertex{width:10px;height:10px;border-radius:50%;background:#fff;border:2px solid #1565c0}.legend-selected{width:10px;height:10px;border-radius:50%;background:#c62828;border:2px solid #fff}
+.label-chip{background:#102a43;color:#fff;border:2px solid #fff;border-radius:6px;padding:3px 6px;font-weight:700;font-size:10px;box-shadow:0 1px 5px rgba(0,0,0,.35)}
+.section-chip{background:#c62828;color:#fff;border:2px solid #fff;border-radius:999px;padding:3px 7px;font-weight:700;font-size:9px;box-shadow:0 1px 5px rgba(0,0,0,.35)}
+.vertex-div{cursor:grab;width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid #1565c0;box-shadow:0 1px 5px rgba(0,0,0,.35)}.vertex-div:active{cursor:grabbing}.vertex-div.selected{background:#c62828;border-color:#fff}.mid-div{width:10px;height:10px;border-radius:50%;background:#1565c0;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.28)}
+.seg-mid-div{width:16px;height:16px;border-radius:50%;background:#ff9800;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:grab}
+.seg-mid-div:active{cursor:grabbing}
+.cut-start,.cut-end{width:22px;height:22px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 7px rgba(0,0,0,.4)}.cut-start{background:#c62828}.cut-end{background:#ef6c00}.replace-point{width:18px;height:18px;border-radius:50%;border:3px solid #fff;background:#7b1fa2;box-shadow:0 2px 7px rgba(0,0,0,.4)}
+.osrm-tag{background:#607d8b;color:#fff;border:2px solid #fff;border-radius:5px;padding:3px 5px;font-size:9px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+@media(max-width:900px){select{min-width:100%;width:100%}.panel{top:12px;right:12px;width:calc(100% - 24px);max-height:calc(100vh - 95px)}.help-open-btn{top:12px;right:12px}#map{height:calc(100vh - 260px)}}
+</style>
+</head>
+<body>
+<header><h1>SXM Bus Route Builder V7</h1><p>Direct geometry editor for St. Maarten routes — click the road itself; vertices remain visible and detail level is reversible.</p></header>
+<div class="toolbar">
+<select id="routeSelect"><option value="">Loading routes...</option></select>
+<button id="buildBtn" class="primary">⚠ Rebuild with OSRM</button>
+<button id="compareBtn">Show OSRM Alternative</button>
+<button id="routeEditBtn" class="primary">Edit Road Segment</button>
+<button id="selectRouteBtn" class="secondary">Select Whole Route</button>
+<button id="vertexBtn">Advanced: Edit Vertices</button>
+<button id="addVertexBtn">Add Vertex</button>
+<button id="deleteVertexBtn" class="danger">Delete Selected Vertices</button>
+<button id="selectSectionBtn" class="danger">Select Road Section</button>
+<button id="deleteSectionBtn" class="danger">Delete Section</button>
+<button id="replacementBtn" class="warning">Draw Replacement</button>
+<button id="joinBtn" class="success">Join Replacement</button>
+<button id="undoBtn">Undo</button><button id="redoBtn">Redo</button>
+<button id="draftBtn">Save Draft</button><button id="clearDraftBtn">Clear Draft</button><button id="publishBtn" class="success">Publish</button>
+<button id="reverseBtn" class="secondary">Reverse</button><button id="validateBtn">Validate</button><button id="resetBtn">Reset</button>
+</div>
+<div id="notice" class="notice"></div>
+<div class="settings">
+  <div class="group"><b>Visible vertex detail</b><span id="detailLabel">100%</span><input id="detailRange" type="range" min="10" max="100" step="10" value="100"><button id="simplifyBtn">Simplify Geometry</button><button id="detail100Btn">Show All Vertices</button></div>
+  <div class="group"><b>Primary editing:</b> click any route segment; its two endpoint vertices are selected automatically. Drag either endpoint, or drag the orange center handle to move the whole segment.</div>
+  <div class="group"><b>Advanced vertex selection:</b> click points; <span class="kbd">Shift</span> + drag box to select many</div>
+  <div class="group">Manual edits never trigger OSRM automatically.</div>
+</div>
+<div class="info">
+  <span>Route: <b id="routeMeta">—</b></span><span>Geometry points: <b id="pointCount">0</b></span><span>Distance: <b id="distance">—</b></span><span>Duration: <b id="duration">—</b></span><span>State: <b id="state" class="state-badge">No route</b></span><span class="status" id="status">Loading...</span>
+</div>
+<div id="map"></div>
+<div class="panel" id="helpPanel">
+  <div class="panel-head"><h3>How to edit</h3><div class="panel-actions"><button id="helpMinBtn" title="Minimize">−</button><button id="helpCloseBtn" title="Close">×</button></div></div>
+  <div class="panel-body">
+  <p><b>1. Select a route.</b> All controls become available when a route with geometry is loaded.</p>
+  <p><b>2. Edit Route by Line.</b> Click anywhere on the route. An orange edit handle appears at that location. Drag the orange handle to reshape that part of the route. This is the normal editing workflow — you do not need to select a vertex.</p>
+  <p><b>3. Select Whole Route.</b> Click the route once to highlight the complete route. Route-level tools such as Reverse, Simplify, Validate, Save Draft, and Publish operate on the whole route.</p>
+  <p><b>4. Advanced: Edit Vertices.</b> Click actual geometry points to multi-select them. Drag any point to move it. <b>Shift + drag</b> a box across points to select many. Midpoint dots insert a point exactly into a segment.</p>
+  <p><b>5. Delete Selected Vertices.</b> Removes all selected geometry points together. The editor will not let you delete the route down to fewer than two points.</p>
+  <p><b>6. Select Road Section.</b> Click anywhere on the route where the bad section starts, then anywhere on the route where it ends. You do not need to hit an existing vertex.</p>
+  <p><b>7. Delete Section.</b> Removes that exact section and creates a real <b>gap</b>. No line is drawn between the two remaining sides.</p>
+  <p><b>8. Draw Replacement.</b> After a gap exists, click along the correct road. The replacement is drawn between the exact gap endpoints. <b>Join Replacement</b> restores one continuous route.</p>
+  <p><b>9. Visible vertex detail.</b> Lowering this slider only changes how many vertices are shown for editing; it does <b>not</b> destroy route geometry. You can move it back up at any time, including back to 100% to see every original geometry point again.</p><p><b>10. Simplify Geometry.</b> This permanently reduces the actual route geometry after you confirm it. Use the slider first when you only need a cleaner editing view.</p>
+  <p><b>10. Show OSRM Alternative.</b> Displays an OSRM proposal without overwriting your current geometry.</p>
+  <p><b>11. Rebuild with OSRM.</b> This <b>will replace your current manual geometry</b> using the saved route waypoints. A confirmation is required.</p>
+  <p><b>12. Save Draft / Publish.</b> Save Draft stores a recoverable local draft on this browser. <b>Publish</b> writes the continuous geometry to Supabase. Gapped routes cannot be published.</p>
+  <div class="notice info" style="display:block">For the Philipsburg → Marigot correction, delete the unwanted OSRM section first. Then draw the Union Road section and join it.</div>
+  </div>
+</div><button id="helpOpenBtn" class="help-open-btn">Help</button>
+<div class="legend"><div class="legend-row"><span class="legend-line"></span>Current route</div><div class="legend-row"><span class="legend-cut"></span>Selected section / gap</div><div class="legend-row"><span class="legend-replace"></span>Replacement</div><div class="legend-row"><span class="legend-osrm"></span>OSRM alternative</div><div class="legend-row"><span class="legend-vertex"></span>Geometry point</div><div class="legend-row"><span class="legend-selected"></span>Selected point</div></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const SUPABASE_URL="https://enqyrmpdaxuelqlgevnl.supabase.co";
+const SUPABASE_KEY="sb_publishable_J_P6bfidx389dnZJc3H43A_vK3ccYnW";
+const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const map=L.map("map",{preferCanvas:true}).setView([18.03,-63.05],12);
+// Dedicated panes keep the editable vertices above the route/hit-test layers.
+map.createPane("routePane"); map.getPane("routePane").style.zIndex=400;
+map.createPane("hitPane"); map.getPane("hitPane").style.zIndex=450;
+map.createPane("midpointPane"); map.getPane("midpointPane").style.zIndex=650;
+map.createPane("vertexPane"); map.getPane("vertexPane").style.zIndex=700;
+map.createPane("controlPane"); map.getPane("controlPane").style.zIndex=750;
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:20,attribution:"&copy; OpenStreetMap contributors"}).addTo(map);
+const $=id=>document.getElementById(id);
+const routeSelect=$("routeSelect"),routeEditBtn=$("routeEditBtn"),selectRouteBtn=$("selectRouteBtn"),buildBtn=$("buildBtn"),compareBtn=$("compareBtn"),vertexBtn=$("vertexBtn"),addVertexBtn=$("addVertexBtn"),deleteVertexBtn=$("deleteVertexBtn"),selectSectionBtn=$("selectSectionBtn"),deleteSectionBtn=$("deleteSectionBtn"),replacementBtn=$("replacementBtn"),joinBtn=$("joinBtn"),undoBtn=$("undoBtn"),redoBtn=$("redoBtn"),draftBtn=$("draftBtn"),clearDraftBtn=$("clearDraftBtn"),publishBtn=$("publishBtn"),reverseBtn=$("reverseBtn"),validateBtn=$("validateBtn"),resetBtn=$("resetBtn"),simplifyBtn=$("simplifyBtn"),detailRange=$("detailRange"),detailLabel=$("detailLabel"),statusEl=$("status"),stateEl=$("state"),noticeEl=$("notice");
+let routes=[],selectedRoute=null,savedSnapshot=null,currentSnapshot=null,geometry=null,distance=null,duration=null,hasGap=false,mode=null,selectedVertexIndices=new Set(),selectedSegmentIndex=null,segmentMidMarker=null,cutStart=null,cutEnd=null,gapStart=null,gapEnd=null,replacementPoints=[],routeLayer=null,hitLayer=null,selectedSectionLayer=null,replacementLayer=null,osrmLayer=null,vertexMarkers=[],midpointMarkers=[],cutMarkers=[],replacementMarkers=[],undoStack=[],redoStack=[],draftSaved=false,boxState=null,wholeRouteSelected=false,lineEditMarker=null,lineEditIndex=null;
+const MAX_HISTORY=100;
+function clone(v){return JSON.parse(JSON.stringify(v))}
+function fmtKm(m){return Number.isFinite(m)?`${(m/1000).toFixed(2)} km`:"—"}
+function geoLen(g){if(!g)return 0;if(g.type==='LineString')return g.coordinates.reduce((s,c,i)=>i?s+haversine(g.coordinates[i-1],c):0,0);if(g.type==='MultiLineString')return g.coordinates.reduce((s,p)=>s+geoLen({type:'LineString',coordinates:p}),0);return 0}
+function haversine(a,b){const R=6371000,lat1=a[1]*Math.PI/180,lat2=b[1]*Math.PI/180,dLat=(b[1]-a[1])*Math.PI/180,dLon=(b[0]-a[0])*Math.PI/180;const q=Math.sin(dLat/2)**2+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.sqrt(q))}
+function lineOnly(){return geometry&&geometry.type==='LineString'&&Array.isArray(geometry.coordinates)&&geometry.coordinates.length>=2}
+function currentCoords(){return lineOnly()?geometry.coordinates:[]}
+function routeLabel(r){const line=r.line_number?`Line ${r.line_number}`:(r.line_code||'Route');return [line,r.variant,r.direction].filter(Boolean).join(' — ')}
+function setStatus(t,good=false){statusEl.textContent=t;statusEl.style.color=good?'#2e7d32':'#243b53'}
+function notice(t,kind='warn'){noticeEl.className='notice '+kind;noticeEl.textContent=t;noticeEl.style.display=t?'block':'none'}
+function stateText(){if(!selectedRoute)return['No route',''];if(hasGap)return['GAPPED — NOT PUBLISHABLE','state-gap'];if(draftSaved)return['DRAFT SAVED','state-unsaved'];if(savedSnapshot&&JSON.stringify(currentEditableSnapshot())===JSON.stringify(savedSnapshot))return['PUBLISHED / SAVED','state-published'];return['UNSAVED CHANGES','state-unsaved']}
+function updateInfo(){const label=stateText();stateEl.textContent=label[0];stateEl.className='state-badge '+label[1];$("routeMeta").textContent=selectedRoute?routeLabel(selectedRoute):'—';$("pointCount").textContent=currentCoords().length;$("distance").textContent=fmtKm(geoLen(geometry));$("duration").textContent=Number.isFinite(duration)?`${Math.round(duration/60)} min`:'—';$("detailLabel").textContent=detailRange.value+'%';updateButtons()}
+function currentEditableSnapshot(){return{route_points:clone(selectedRoute?.route_points||[]),road_geometry:clone(geometry),road_distance_meters:geoLen(geometry),road_duration_seconds:Number.isFinite(duration)?duration:null}}
+function pushHistory(){if(!geometry)return;undoStack.push(clone(currentEditableSnapshot()));if(undoStack.length>MAX_HISTORY)undoStack.shift();redoStack=[];draftSaved=false;updateButtons()}
+function restoreSnapshot(s){geometry=clone(s.road_geometry);duration=s.road_duration_seconds;distance=geoLen(geometry);hasGap=geometry?.type==='MultiLineString';if(hasGap&&geometry.coordinates.length===2){gapStart=geometry.coordinates[0].at(-1).slice();gapEnd=geometry.coordinates[1][0].slice()}else{gapStart=gapEnd=null}selectedVertexIndices.clear();selectedSegmentIndex=null;cutStart=cutEnd=null;replacementPoints=[];drawAll();draftSaved=false;updateInfo()}
+function clearLayer(x){if(x&&map.hasLayer(x))map.removeLayer(x)}
+function clearGraphics(){clearLayer(lineEditMarker);lineEditMarker=null;lineEditIndex=null;clearLayer(segmentMidMarker);segmentMidMarker=null;[routeLayer,hitLayer,selectedSectionLayer,replacementLayer,osrmLayer].forEach(clearLayer);vertexMarkers.forEach(clearLayer);midpointMarkers.forEach(clearLayer);cutMarkers.forEach(clearLayer);replacementMarkers.forEach(clearLayer);routeLayer=hitLayer=selectedSectionLayer=replacementLayer=osrmLayer=null;vertexMarkers=[];midpointMarkers=[];cutMarkers=[];replacementMarkers=[]}
+function icon(html,size){return L.divIcon({className:'',html,iconSize:size,iconAnchor:[size[0]/2,size[1]/2]})}
+const vIcon=sel=>icon(`<div class="vertex-div ${sel?'selected':''}"></div>`,[12,12]);const midIcon=()=>icon('<div class="mid-div"></div>',[10,10]);
+function drawRoute(){
+  clearLayer(routeLayer); clearLayer(hitLayer); routeLayer=hitLayer=null;
+  if(!geometry)return;
+  const routeStyle={color:wholeRouteSelected?'#8e24aa':'#1565c0',weight:wholeRouteSelected?9:7,opacity:.92};
+  routeLayer=L.geoJSON(geometry,{style:routeStyle,interactive:true,pane:'routePane'}).addTo(map);
+  const interactive = (mode==='cut'||mode==='segment'||mode==='add');
+  // Robust click targets: separate Leaflet polylines for each actual segment.
+  // This avoids relying on GeoJSON hit-testing and makes the route itself directly clickable.
+  hitLayer=L.layerGroup().addTo(map);
+  if(interactive && geometry.type==='LineString' && geometry.coordinates.length>=2){
+    const c=geometry.coordinates;
+    for(let i=0;i<c.length-1;i++){
+      const seg=L.polyline([[c[i][1],c[i][0]],[c[i+1][1],c[i+1][0]]],{color:'#000',weight:30,opacity:0.001,interactive:true,pane:'hitPane',bubblingMouseEvents:false}).addTo(hitLayer);
+      seg._segmentIndex=i;
+      seg.on('click',e=>{
+        L.DomEvent.stopPropagation(e);
+        if(mode==='cut'){handleCutClick(e.latlng);return}
+        if(mode==='segment'){selectSegmentIndex(i,e.latlng);return}
+        if(mode==='add'){addVertexAtClick(e.latlng);return}
+      });
+    }
+  }
+  routeLayer.bringToBack();
+  if(interactive)hitLayer.bringToFront();
+}
+
+function syncDraggedGeometryToLayers(){
+  if(!geometry||!lineOnly()) return;
+  const latlngs=geometry.coordinates.map(c=>[c[1],c[0]]);
+  if(routeLayer) routeLayer.eachLayer(l=>{ if(l.setLatLngs) l.setLatLngs(latlngs); });
+  if(hitLayer) hitLayer.eachLayer(l=>{ if(l.setLatLngs) l.setLatLngs(latlngs); });
+  if(routeLayer) routeLayer.bringToFront();
+  vertexMarkers.forEach(m=>{ if(m.bringToFront) m.bringToFront(); });
+}
+function visibleVertexSet(){
+  const c=currentCoords();
+  const n=c.length;
+  if(!n)return new Set();
+  const pct=Math.max(10,Math.min(100,Number(detailRange.value)||100));
+  if(pct>=100)return new Set(Array.from({length:n},(_,i)=>i));
+  const keepCount=Math.max(2,Math.round(2+(n-2)*(pct/100)));
+  const step=(n-1)/(keepCount-1);
+  const set=new Set([0,n-1]);
+  for(let k=1;k<keepCount-1;k++)set.add(Math.round(k*step));
+  // Always keep selected and actively edited segment endpoints visible.
+  selectedVertexIndices.forEach(i=>{if(i>=0&&i<n)set.add(i)});
+  if(selectedSegmentIndex!==null){set.add(selectedSegmentIndex);set.add(selectedSegmentIndex+1)}
+  return set;
+}
+function drawVertices(){
+  vertexMarkers.forEach(clearLayer); midpointMarkers.forEach(clearLayer);
+  vertexMarkers=[]; midpointMarkers=[];
+  if(!lineOnly()) return;
+  const c=currentCoords(), visible=visibleVertexSet();
+  for(const i of [...visible].sort((a,b)=>a-b)){
+    const marker=L.marker([c[i][1],c[i][0]],{
+      icon:vIcon(selectedVertexIndices.has(i)), draggable:(mode==='vertex'||mode==='segment'), pane:'vertexPane',
+      zIndexOffset:2000, riseOnHover:true, autoPan:false, bubblingMouseEvents:false
+    }).addTo(map);
+    const el=marker.getElement(); if(el) L.DomEvent.disableClickPropagation(el);
+    marker.bindTooltip(`Point ${i+1}${selectedVertexIndices.has(i)?' — SELECTED':''}`,{direction:'top',opacity:.8});
+    marker.on('click',e=>{
+      L.DomEvent.stopPropagation(e);
+      if(mode==='vertex'){
+        if(selectedVertexIndices.has(i)) selectedVertexIndices.delete(i); else selectedVertexIndices.add(i);
+        drawVertices(); updateInfo();
+        setStatus(selectedVertexIndices.size?`${selectedVertexIndices.size} point${selectedVertexIndices.size===1?'':'s'} selected.`:'No points selected.');
+      } else if(mode==='segment'){
+        const seg=Math.max(0,Math.min(i===currentCoords().length-1?i-1:i,currentCoords().length-2));
+        selectedSegmentIndex=seg; selectedVertexIndices.clear();
+        selectedVertexIndices.add(seg); selectedVertexIndices.add(seg+1);
+        drawAll(); setStatus(`Road segment ${seg+1} selected. Drag either endpoint or the orange center handle.`,true); updateButtons();
+      }
+    });
+    marker.on('dragstart',()=>{ if(mode==='vertex'||mode==='segment'){ pushHistory(); setStatus(`Moving point ${i+1}…`); }});
+    marker.on('drag',e=>{
+      if(mode!=='vertex' && mode!=='segment') return;
+      const p=e.target.getLatLng(); geometry.coordinates[i]=[p.lng,p.lat];
+      syncDraggedGeometryToLayers();
+      if(segmentMidMarker && mode==='segment' && (i===selectedSegmentIndex || i===selectedSegmentIndex+1)){
+        const c=currentCoords(),a=L.latLng(c[selectedSegmentIndex][1],c[selectedSegmentIndex][0]),b=L.latLng(c[selectedSegmentIndex+1][1],c[selectedSegmentIndex+1][0]);
+        segmentMidMarker.setLatLng([(a.lat+b.lat)/2,(a.lng+b.lng)/2]);
+      }
+      updateInfo();
+    });
+    marker.on('dragend',e=>{
+      if(mode!=='vertex' && mode!=='segment') return;
+      const p=e.target.getLatLng(); geometry.coordinates[i]=[p.lng,p.lat];
+      distance=geoLen(geometry); draftSaved=false;
+      const keepSeg=(mode==='segment'?selectedSegmentIndex:null);
+      // Keep the full geometry intact; only the visible vertex density changes with the slider.
+      drawAll();
+      if(keepSeg!==null && lineOnly()){ selectedSegmentIndex=Math.min(keepSeg,currentCoords().length-2); selectedVertexIndices.clear(); selectedVertexIndices.add(selectedSegmentIndex); selectedVertexIndices.add(selectedSegmentIndex+1); drawAll(); }
+      setStatus(`Moved geometry point ${i+1}.`,true); updateButtons();
+    });
+    vertexMarkers.push(marker);
+  }
+  // Midpoint markers are shown at full detail. At lower display detail, the route itself remains fully editable by line-click.
+  if(Number(detailRange.value)>=100){
+    for(let i=0;i<c.length-1;i++){
+      const a=L.latLng(c[i][1],c[i][0]),b=L.latLng(c[i+1][1],c[i+1][0]);
+      const m=L.latLng((a.lat+b.lat)/2,(a.lng+b.lng)/2);
+      const mk=L.marker(m,{icon:midIcon(),opacity:.85,zIndexOffset:1500,pane:'midpointPane',interactive:true,bubblingMouseEvents:false}).addTo(map);
+      mk.bindTooltip('Click to insert geometry point here',{direction:'top',opacity:.75});
+      mk.on('click',e=>{L.DomEvent.stopPropagation(e);pushHistory();const p=mk.getLatLng();geometry.coordinates.splice(i+1,0,[p.lng,p.lat]);selectedVertexIndices=new Set([...selectedVertexIndices].map(v=>v>i?v+1:v));selectedVertexIndices.add(i+1);distance=geoLen(geometry);drawAll();setStatus(`Inserted geometry point ${i+2}.`,true)});
+      midpointMarkers.push(mk)
+    }
+  }
+}
+function nearestProjection(latlng){if(!lineOnly())return null;const z=20,target=map.project(latlng,z),c=currentCoords();let best=null,bestD=Infinity,along=0;for(let i=0;i<c.length-1;i++){const aLL=L.latLng(c[i][1],c[i][0]),bLL=L.latLng(c[i+1][1],c[i+1][0]);const a=map.project(aLL,z),b=map.project(bLL,z),dx=b.x-a.x,dy=b.y-a.y,len2=dx*dx+dy*dy,seg=map.distance(aLL,bLL);let t=len2?((target.x-a.x)*dx+(target.y-a.y)*dy)/len2:0;t=Math.max(0,Math.min(1,t));const x=a.x+t*dx,y=a.y+t*dy,d2=(target.x-x)**2+(target.y-y)**2;if(d2<bestD){const ll=map.unproject(L.point(x,y),z);best={segmentIndex:i,t,point:[ll.lng,ll.lat],distancePixels:Math.sqrt(d2),distanceMeters:Math.sqrt(d2)*(map.distance(aLL,bLL)/(Math.hypot(dx,dy)||1)),distanceAlong:along+seg*t}}along+=seg}return best}
+function cutPointOnLine(hit){const c=currentCoords(),i=hit.segmentIndex,t=hit.t;if(t<=1e-6)return{...hit,segmentIndex:i,t:0,point:c[i].slice(),distanceAlong:c.slice(0,i).reduce((s,p,j)=>s+haversine(c[j],p),0)};if(t>=1-1e-6)return{...hit,segmentIndex:Math.min(i+1,c.length-1),t:0,point:c[i+1].slice(),distanceAlong:c.slice(0,i+1).reduce((s,p,j)=>s+(j?haversine(c[j-1],p):0),0)};return hit}
+function makeLineEditMarker(latlng,index){
+  clearLayer(lineEditMarker);
+  lineEditIndex=index;
+  lineEditMarker=L.marker(latlng,{draggable:true,zIndexOffset:5000,icon:icon('<div style="width:18px;height:18px;border-radius:50%;background:#ff9800;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.45)"></div>',[18,18]),bubblingMouseEvents:false}).addTo(map);
+  lineEditMarker.bindTooltip('Drag to reshape this part of the route',{direction:'top'});
+  lineEditMarker.on('dragstart',()=>{pushHistory();setStatus('Reshaping route…')});
+  lineEditMarker.on('drag',e=>{
+    if(!lineOnly()||lineEditIndex===null)return;
+    const p=e.target.getLatLng(); geometry.coordinates[lineEditIndex]=[p.lng,p.lat];
+    syncDraggedGeometryToLayers(); updateInfo();
+  });
+  lineEditMarker.on('dragend',e=>{
+    if(!lineOnly()||lineEditIndex===null)return;
+    const p=e.target.getLatLng(); geometry.coordinates[lineEditIndex]=[p.lng,p.lat];
+    distance=geoLen(geometry);draftSaved=false;
+    const idx=lineEditIndex; drawAll(false); makeLineEditMarker(L.latLng(p.lat,p.lng),idx);
+    setStatus('Route reshaped. Drag the orange handle again or click another part of the route.',true); updateButtons();
+  });
+}
+function selectSegmentIndex(i,latlng){
+  if(mode!=='segment'||!lineOnly())return;
+  const max=currentCoords().length-2;
+  selectedSegmentIndex=Math.max(0,Math.min(Number(i)||0,max));
+  selectedVertexIndices.clear();
+  selectedVertexIndices.add(selectedSegmentIndex);
+  selectedVertexIndices.add(selectedSegmentIndex+1);
+  wholeRouteSelected=true;
+  drawAll();
+  setStatus(`Road segment ${selectedSegmentIndex+1} selected. Drag either endpoint, or drag the orange center handle to move the segment.`,true);
+  updateButtons();
+}
+function handleSegmentClick(latlng){
+  if(mode!=='segment'||!lineOnly())return;
+  const h=nearestProjection(latlng);
+  if(!h||h.distancePixels>80){setStatus('Click directly on the route line.');return}
+  selectSegmentIndex(h.segmentIndex,latlng);
+}
+function drawSegmentEdit(){
+  clearLayer(segmentMidMarker); segmentMidMarker=null;
+  if(mode!=='segment'||selectedSegmentIndex===null||!lineOnly())return;
+  const c=currentCoords(),i=selectedSegmentIndex;
+  const a=L.latLng(c[i][1],c[i][0]), b=L.latLng(c[i+1][1],c[i+1][0]);
+  const mid=L.latLng((a.lat+b.lat)/2,(a.lng+b.lng)/2);
+  segmentMidMarker=L.marker(mid,{icon:icon('<div class="seg-mid-div"></div>',[16,16]),draggable:true,zIndexOffset:4500,bubblingMouseEvents:false}).addTo(map);
+  segmentMidMarker.bindTooltip('Drag to move this whole road segment',{direction:'top'});
+  segmentMidMarker.on('dragstart',()=>{
+    pushHistory();
+    const now=currentCoords(),aa=now[i],bb=now[i+1];
+    segmentMidMarker._segmentDragOrigin={a:aa.slice(),b:bb.slice(),start:segmentMidMarker.getLatLng()};
+    setStatus(`Moving segment ${i+1}…`);
+  });
+  segmentMidMarker.on('drag',e=>{
+    if(!lineOnly()||selectedSegmentIndex===null)return;
+    const o=segmentMidMarker._segmentDragOrigin;if(!o)return;
+    const ll=e.target.getLatLng();
+    const dLat=ll.lat-o.start.lat,dLng=ll.lng-o.start.lng;
+    geometry.coordinates[i]=[o.a[0]+dLng,o.a[1]+dLat];
+    geometry.coordinates[i+1]=[o.b[0]+dLng,o.b[1]+dLat];
+    syncDraggedGeometryToLayers();
+    if(vertexMarkers.length) vertexMarkers.forEach((m,idx)=>{if(idx===i||idx===i+1)m.setLatLng([geometry.coordinates[idx][1],geometry.coordinates[idx][0]]);});
+    if(segmentMidMarker) segmentMidMarker.bringToFront();
+    updateInfo();
+  });
+  segmentMidMarker.on('dragend',()=>{
+    distance=geoLen(geometry);draftSaved=false;
+    drawAll();
+    setStatus(`Road segment ${i+1} moved.`,true);
+  });
+}
+
+function handleCutClick(latlng){if(mode!=='cut'||!lineOnly())return;const h=nearestProjection(latlng);if(!h||h.distancePixels>34){setStatus('Click directly on the route line.');return}const hit=cutPointOnLine(h);if(cutStart===null){cutStart=hit;cutEnd=null;drawCut();setStatus('START selected. Click the route again at the END of the unwanted section.');updateButtons();return}if(Math.abs(hit.distanceAlong-cutStart.distanceAlong)<5){setStatus('Choose an endpoint farther along the route.');return}cutEnd=hit;if(cutEnd.distanceAlong<cutStart.distanceAlong)[cutStart,cutEnd]=[cutEnd,cutStart];mode=null;drawCut();updateButtons();setStatus('Section selected. Delete it, or draw a replacement first.');}
+function buildSectionCoords(){if(cutStart===null||cutEnd===null)return[];const c=currentCoords(),out=[cutStart.point];for(let i=cutStart.segmentIndex+1;i<=cutEnd.segmentIndex;i++)out.push(c[i]);out.push(cutEnd.point);return compact(out)}
+function compact(c){const out=[];for(const p of c){if(!out.length||haversine(out[out.length-1],p)>0.5)out.push(p)}return out}
+function drawCut(){clearLayer(selectedSectionLayer);selectedSectionLayer=null;cutMarkers.forEach(clearLayer);cutMarkers=[];if(!cutStart)return;if(cutStart&&cutEnd&&lineOnly()){const sec=buildSectionCoords();if(sec.length>1)selectedSectionLayer=L.polyline(sec.map(p=>[p[1],p[0]]),{color:'#c62828',weight:15,opacity:.85,dashArray:'16 10'}).addTo(map);selectedSectionLayer?.bringToFront()}const sm=L.marker([cutStart.point[1],cutStart.point[0]],{icon:icon('<div class="cut-start"></div>',[22,22]),zIndexOffset:1000}).addTo(map);sm.bindTooltip('DELETE START');cutMarkers.push(sm);if(cutEnd){const em=L.marker([cutEnd.point[1],cutEnd.point[0]],{icon:icon('<div class="cut-end"></div>',[22,22]),zIndexOffset:1000}).addTo(map);em.bindTooltip('DELETE END');cutMarkers.push(em)}}
+function deleteSection(){if(!cutStart||!cutEnd||!lineOnly())return;pushHistory();const c=currentCoords(),left=[...c.slice(0,cutStart.segmentIndex+1)],right=[...c.slice(cutEnd.segmentIndex+1)];left[left.length-1]=cutStart.point.slice();right.unshift(cutEnd.point.slice());const cleanLeft=compact(left),cleanRight=compact(right);if(cleanLeft.length<2||cleanRight.length<2){undoStack.pop();redoStack=[];setStatus('Section too large to delete because it would leave one side with fewer than two points.');updateButtons();return}gapStart=cleanLeft[cleanLeft.length-1].slice();gapEnd=cleanRight[0].slice();geometry={type:'MultiLineString',coordinates:[cleanLeft,cleanRight]};hasGap=true;cutStart=cutEnd=null;replacementPoints=[];draftSaved=false;mode=null;drawAll();notice('Gap created. Nothing was drawn across it. You can save the gapped draft or draw the correct road and join it.','danger');setStatus('Road section deleted — real gap created with NO connecting line.',true)}
+function drawReplacement(){replacementMarkers.forEach(clearLayer);replacementMarkers=[];clearLayer(replacementLayer);replacementLayer=null;if(!hasGap||!gapStart||!gapEnd){setStatus('First create a gap by deleting a road section.');return}mode=mode==='draw'?null:'draw';replacementPoints=[];if(mode==='draw')setStatus('Draw Replacement: click along the correct road. Click Finish Replacement when done.');updateButtons();drawAll()}
+function finishReplacement(){if(mode!=='draw')return;if(replacementPoints.length<1){setStatus('Add at least one replacement point.');return}mode=null;drawAll();setStatus('Replacement ready. Click Join Replacement to close the gap.');updateButtons()}
+function addReplacementPoint(latlng){if(!hasGap||!gapStart||!gapEnd)return;const p=nearestRoadPoint(latlng);replacementPoints.push(p);drawReplacementLayer();setStatus(`${replacementPoints.length} replacement point${replacementPoints.length===1?'':'s'} added.`)}
+function nearestRoadPoint(latlng){const h=latlng;return{lat:h.lat,lng:h.lng}}
+function drawGapMarkers(){if(!hasGap||!gapStart||!gapEnd)return;cutMarkers.forEach(clearLayer);cutMarkers=[];const sm=L.marker([gapStart[1],gapStart[0]],{icon:icon('<div class="cut-start"></div>',[22,22]),zIndexOffset:1000}).addTo(map);sm.bindTooltip('GAP START');const em=L.marker([gapEnd[1],gapEnd[0]],{icon:icon('<div class="cut-end"></div>',[22,22]),zIndexOffset:1000}).addTo(map);em.bindTooltip('GAP END');cutMarkers.push(sm,em)}
+function drawReplacementLayer(){clearLayer(replacementLayer);replacementLayer=null;replacementMarkers.forEach(clearLayer);replacementMarkers=[];if(!gapStart||!gapEnd)return;const coords=[[gapStart[1],gapStart[0]],...replacementPoints.map(p=>[p.lat,p.lng]),[gapEnd[1],gapEnd[0]]];if(coords.length>1)replacementLayer=L.polyline(coords,{color:'#7b1fa2',weight:7,dashArray:'10 7',opacity:.95}).addTo(map);replacementLayer?.bringToFront();replacementPoints.forEach((p,i)=>replacementMarkers.push(L.marker([p.lat,p.lng],{icon:icon('<div class="replace-point"></div>',[18,18]),zIndexOffset:900}).addTo(map)))}
+function joinReplacement(){if(!hasGap||!gapStart||!gapEnd||replacementPoints.length<1){setStatus('A gap and replacement points are required.');return}pushHistory();const parts=clone(geometry.coordinates);if(parts.length!==2){setStatus('Unexpected gap structure.');return}let merged=[...parts[0]];for(const p of replacementPoints)merged.push([p.lng,p.lat]);merged.push(gapEnd.slice());merged=compact(merged);merged.push(...parts[1].slice(1));merged=compact(merged);geometry={type:'LineString',coordinates:merged};hasGap=false;replacementPoints=[];gapStart=gapEnd=null;cutStart=cutEnd=null;draftSaved=false;drawAll();notice('Replacement joined. Validate the route before publishing.','success');setStatus('Gap repaired and route restored to one continuous line.',true)}
+function addVertexAtClick(latlng){if(!lineOnly())return;const h=nearestProjection(latlng);if(!h||h.distancePixels>40){setStatus('Click near the route to add a vertex.');return}pushHistory();const insert=h.segmentIndex+1;const p=h.point;geometry.coordinates.splice(insert,0,p);selectedVertexIndices.clear();selectedVertexIndices.add(insert);distance=geoLen(geometry);draftSaved=false;drawAll();setStatus(`Inserted geometry point ${insert+1}.`,true)}
+function deleteSelectedVertices(){if(!lineOnly())return;const inds=[...selectedVertexIndices].sort((a,b)=>b-a);if(!inds.length)return;if(currentCoords().length-inds.length<2){setStatus('You must keep at least two route points.');return}pushHistory();for(const i of inds)geometry.coordinates.splice(i,1);selectedVertexIndices.clear();distance=geoLen(geometry);draftSaved=false;drawAll();setStatus(`${inds.length} geometry point${inds.length===1?'':'s'} deleted.`,true)}
+function reverseRoute(){if(!lineOnly())return;pushHistory();geometry.coordinates.reverse();selectedVertexIndices.clear();draftSaved=false;drawAll();setStatus('Route geometry reversed. Direction metadata was not changed.',true)}
+function rdp(points,tol){if(points.length<=2)return points;const a=points[0],b=points[points.length-1];let max=-1,idx=-1;for(let i=1;i<points.length-1;i++){const d=pointLineDistanceMeters(points[i],a,b);if(d>max){max=d;idx=i}}if(max>tol){const l=rdp(points.slice(0,idx+1),tol),r=rdp(points.slice(idx),tol);return l.slice(0,-1).concat(r)}return[a,b]}
+function pointLineDistanceMeters(p,a,b){const x=p[0],y=p[1],x1=a[0],y1=a[1],x2=b[0],y2=b[1];const dx=x2-x1,dy=y2-y1;if(dx===0&&dy===0)return haversine(p,a);const t=Math.max(0,Math.min(1,((x-x1)*dx+(y-y1)*dy)/(dx*dx+dy*dy)));return haversine(p,[x1+t*dx,y1+t*dy])}
+function simplifyGeometry(){if(!lineOnly()||geometry.coordinates.length<3)return;const pct=Number(detailRange.value);if(pct>=100){setStatus('Geometry is already at 100% detail.');return}const tol=detailTolerance(pct);pushHistory();const simp=rdp(geometry.coordinates,tol);if(simp.length<2){restoreLastUndo();setStatus('Simplification produced an invalid route.');return}geometry.coordinates=simp;selectedVertexIndices.clear();distance=geoLen(geometry);draftSaved=false;drawAll();setStatus(`Geometry simplified to ${simp.length} points using approximately ${tol.toFixed(1)} m tolerance.`,true)}
+function detailTolerance(pct){return Math.max(0.5,(100-pct)*0.22)}
+function validateRoute(){if(!selectedRoute||!geometry){setStatus('No route loaded.');return}const errors=[];if(hasGap||geometry.type!=='LineString')errors.push('Route contains a gap / is not a continuous LineString.');const c=currentCoords();if(c.length<2)errors.push('Route must contain at least two points.');let zero=0;for(let i=1;i<c.length;i++){const d=haversine(c[i-1],c[i]);if(d<0.2)zero++}if(zero)errors.push(`${zero} duplicate/near-duplicate geometry point${zero===1?'':'s'}.`);const msg=errors.length?errors.join(' '):`Valid continuous route: ${c.length} points, ${fmtKm(geoLen(geometry))}.`;notice(msg,errors.length?'danger':'success');setStatus(errors.length?'Validation found issues.':'Validation passed.',!errors.length);return!errors.length}
+function drawEndpoints(){if(!lineOnly())return;const c=currentCoords();const startText=(selectedRoute?.origin||'START').toString().slice(0,18);const endText=(selectedRoute?.destination||'END').toString().slice(0,18);const start=L.marker([c[0][1],c[0][0]],{icon:icon(`<div class="label-chip">${startText}</div>`,[Math.max(52,startText.length*7+12),22]),zIndexOffset:700}).addTo(map);const end=L.marker([c[c.length-1][1],c[c.length-1][0]],{icon:icon(`<div class="label-chip">${endText}</div>`,[Math.max(48,endText.length*7+12),22]),zIndexOffset:700}).addTo(map);vertexMarkers.push(start,end)}
+function drawAll(redrawVertices=true){clearGraphics();drawRoute();if(redrawVertices)drawVertices();if(selectedSegmentIndex!==null)drawSegmentEdit();if(cutStart)drawCut();if(hasGap)drawGapMarkers();if((mode==='draw'||replacementPoints.length)&&hasGap)drawReplacementLayer();drawEndpoints();updateInfo()}
+function resetEdits(){if(!savedSnapshot)return;restoreSnapshot(savedSnapshot);undoStack=[];redoStack=[];draftSaved=false;mode=null;notice('All unsaved edits were discarded.','info');setStatus('Reset to the last saved/published geometry.',true);drawAll()}
+function undo(){if(!undoStack.length)return;redoStack.push(clone(currentEditableSnapshot()));const s=undoStack.pop();restoreSnapshot(s);setStatus('Undo complete.',true)}
+function redo(){if(!redoStack.length)return;undoStack.push(clone(currentEditableSnapshot()));const s=redoStack.pop();restoreSnapshot(s);setStatus('Redo complete.',true)}
+async function saveDraft(){if(!selectedRoute||!geometry)return;detailRange.value='100';detailLabel.textContent='100%';drawVertices();const key=`sxm-route-draft-${selectedRoute.id}`;const payload={route_id:selectedRoute.id,route_label:routeLabel(selectedRoute),saved_at:new Date().toISOString(),snapshot:currentEditableSnapshot()};localStorage.setItem(key,JSON.stringify(payload));draftSaved=true;updateInfo();notice('Draft saved in this browser. It will be offered the next time this route is opened on this browser.','success');setStatus('Draft saved locally.',true)}
+async function restoreLocalDraft(){if(!selectedRoute)return;const key=`sxm-route-draft-${selectedRoute.id}`;const raw=localStorage.getItem(key);if(!raw)return;try{const p=JSON.parse(raw);if(!p.snapshot?.road_geometry)return;const use=confirm(`A local draft exists for ${routeLabel(selectedRoute)} from ${new Date(p.saved_at).toLocaleString()}. Load it?`);if(use){restoreSnapshot(p.snapshot);draftSaved=true;notice('Local draft loaded. Review and publish when ready.','warn');setStatus('Local draft loaded.')}}catch(e){console.warn(e)}}
+function clearLocalDraft(){if(!selectedRoute)return;localStorage.removeItem(`sxm-route-draft-${selectedRoute.id}`);draftSaved=false;updateInfo()}
+async function publish(){if(!selectedRoute||!geometry)return;if(!validateRoute())return;const ok=confirm(`Publish this route to Supabase?\n\n${routeLabel(selectedRoute)}\n\nThis will update road_geometry and route_points for this route.`);if(!ok)return;setStatus('Publishing...');const payload={road_geometry:geometry,road_distance_meters:geoLen(geometry),road_duration_seconds:Number.isFinite(duration)?duration:null};const{error}=await db.from('routes').update(payload).eq('id',selectedRoute.id);if(error){setStatus(`Publish error: ${error.message}`);return}selectedRoute={...selectedRoute,...payload};savedSnapshot=currentEditableSnapshot();draftSaved=false;clearLocalDraft();detailRange.value='100';detailLabel.textContent='100%';drawVertices();updateInfo();notice('Published successfully to Supabase.','success');setStatus('Published successfully.',true)}
+function routeWaypoints(){const pts=selectedRoute?.route_points||[];return pts.map(p=>Array.isArray(p)?p:(p.longitude!=null?[p.longitude,p.latitude]:null)).filter(Boolean)}
+async function osrmRequest(){const pts=routeWaypoints();if(pts.length<2)throw new Error('This route does not have at least two saved route waypoints.');const coords=pts.map(p=>`${p[0]},${p[1]}`).join(';');const url=`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false`;const r=await fetch(url);if(!r.ok)throw new Error(`OSRM HTTP ${r.status}`);const data=await r.json();if(data.code!=='Ok'||!data.routes?.[0])throw new Error(data.message||'OSRM did not return a route.');return data.routes[0]}
+async function showOsrmAlternative(){if(!selectedRoute)return;setStatus('Requesting OSRM alternative...');try{const r=await osrmRequest();clearLayer(osrmLayer);osrmLayer=L.geoJSON(r.geometry,{style:{color:'#607d8b',weight:5,dashArray:'8 8',opacity:.9}}).addTo(map);osrmLayer.bindTooltip('OSRM alternative — current geometry has NOT changed');osrmLayer.bringToBack();setStatus(`OSRM alternative shown (${fmtKm(r.distance)}). Current route remains unchanged.`,true)}catch(e){setStatus(`OSRM error: ${e.message}`)}}
+async function rebuild(){if(!selectedRoute)return;const ok=confirm(`REBUILD WARNING\n\nRebuilding with OSRM will REPLACE the current manual geometry for:\n${routeLabel(selectedRoute)}\n\nAny manual corrections you made may be lost.\n\nContinue?`);if(!ok)return;setStatus('Rebuilding with OSRM...');try{const r=await osrmRequest();pushHistory();geometry=clone(r.geometry);distance=r.distance;duration=r.duration;hasGap=false;cutStart=cutEnd=null;replacementPoints=[];selectedVertexIndices.clear();draftSaved=false;wholeRouteSelected=false;clearLayer(osrmLayer);osrmLayer=null;drawAll();notice('OSRM rebuilt the entire route. Review it carefully before publishing.','warn');setStatus(`OSRM rebuild complete: ${fmtKm(r.distance)}, ${Math.round(r.duration/60)} min.`,true)}catch(e){setStatus(`OSRM error: ${e.message}`)}}
+async function loadRoute(id){const r=routes.find(x=>String(x.id)===String(id));if(!r)return;selectedRoute=r;detailRange.value='100';detailLabel.textContent='100%';mode=null;selectedVertexIndices.clear();selectedSegmentIndex=null;cutStart=cutEnd=null;gapStart=gapEnd=null;replacementPoints=[];undoStack=[];redoStack=[];draftSaved=false;clearLayer(osrmLayer);osrmLayer=null;geometry=r.road_geometry?clone(r.road_geometry):(r.route_points?.length>=2?{type:'LineString',coordinates:routeWaypoints()}:null);duration=r.road_duration_seconds;distance=geoLen(geometry);hasGap=geometry?.type==='MultiLineString';if(hasGap&&geometry.coordinates.length===2){gapStart=geometry.coordinates[0].at(-1).slice();gapEnd=geometry.coordinates[1][0].slice()}savedSnapshot=currentEditableSnapshot();currentSnapshot=savedSnapshot;if(geometry){map.fitBounds(L.geoJSON(geometry).getBounds(),{padding:[40,40]});notice(hasGap?'This route is already stored as a gapped editor geometry. Publish is disabled until repaired.':'Route loaded. Choose an editing tool.',hasGap?'danger':'info');setStatus(`Loaded ${routeLabel(r)}.`,true)}else{notice('This route has no road_geometry. Build it with OSRM or use route waypoints.','warn');setStatus('Route has no geometry.')}drawAll();setTimeout(restoreLocalDraft,250)}
+async function loadRoutes(){setStatus('Loading routes...');const{data,error}=await db.from('routes').select('id,route_name,direction,region,line_number,line_code,variant,origin,destination,route_points,road_geometry,road_distance_meters,road_duration_seconds,active').eq('active',true).order('region',{ascending:true}).order('line_number',{ascending:true}).order('variant',{ascending:true}).order('direction',{ascending:true});if(error){console.error(error);routeSelect.innerHTML='<option value="">Could not load routes</option>';setStatus(`Supabase error: ${error.message}`);return}routes=data||[];routeSelect.innerHTML='<option value="">Select a route...</option>';const groups={};for(const r of routes){const region=r.region||'Other';if(!groups[region]){groups[region]=document.createElement('optgroup');groups[region].label=region;routeSelect.appendChild(groups[region])}const o=document.createElement('option');o.value=r.id;o.textContent=routeLabel(r);groups[region].appendChild(o)}setStatus(`${routes.length} active routes loaded.`,true);updateButtons()}
+function updateButtons(){const has=lineOnly()||hasGap;routeEditBtn.disabled=!lineOnly()||mode==='draw'||mode==='cut';selectRouteBtn.disabled=!lineOnly()||mode==='draw'||mode==='cut';buildBtn.disabled=!selectedRoute||mode==='draw';compareBtn.disabled=!selectedRoute;vertexBtn.disabled=!lineOnly()||mode==='draw';addVertexBtn.disabled=!lineOnly()||mode==='draw';deleteVertexBtn.disabled=!lineOnly()||selectedVertexIndices.size===0||currentCoords().length-selectedVertexIndices.size<2;selectSectionBtn.disabled=!lineOnly()||mode==='draw';deleteSectionBtn.disabled=!cutStart||!cutEnd||hasGap;replacementBtn.disabled=!hasGap||!gapStart||!gapEnd;if(!replacementBtn.disabled)replacementBtn.textContent=mode==='draw'?'Finish Replacement':'Draw Replacement';joinBtn.disabled=!hasGap||!gapStart||!gapEnd||replacementPoints.length===0||mode==='draw';undoBtn.disabled=!undoStack.length;redoBtn.disabled=!redoStack.length;draftBtn.disabled=!selectedRoute||!geometry;clearDraftBtn.disabled=!selectedRoute||!localStorage.getItem(`sxm-route-draft-${selectedRoute?.id||''}`);publishBtn.disabled=!selectedRoute||!lineOnly()||hasGap;reverseBtn.disabled=!lineOnly()||mode!==null;validateBtn.disabled=!selectedRoute||!geometry;resetBtn.disabled=!selectedRoute||mode!==null||!geometry;simplifyBtn.disabled=!lineOnly()||currentCoords().length<3||detailRange.value==='100'}
+routeSelect.addEventListener('change',e=>loadRoute(e.target.value));
+routeEditBtn.addEventListener('click',()=>{if(!lineOnly())return;mode=mode==='segment'?null:'segment';selectedVertexIndices.clear();selectedSegmentIndex=null;clearLayer(lineEditMarker);lineEditMarker=null;lineEditIndex=null;wholeRouteSelected=true;drawAll();setStatus(mode==='segment'?'Edit Road Segment: click any part of the route to automatically select the two endpoint vertices; drag either endpoint or the orange center handle to edit it.':'Segment editing off.');updateButtons()});selectRouteBtn.addEventListener('click',()=>{if(!lineOnly())return;mode=null;wholeRouteSelected=true;selectedSegmentIndex=null;clearLayer(lineEditMarker);lineEditMarker=null;lineEditIndex=null;drawAll();setStatus('Whole route selected.',true);updateButtons()});vertexBtn.addEventListener('click',()=>{if(!lineOnly())return;mode=mode==='vertex'?null:'vertex';selectedVertexIndices.clear();wholeRouteSelected=true;clearLayer(lineEditMarker);lineEditMarker=null;lineEditIndex=null;drawAll();setStatus(mode==='vertex'?'Vertex edit mode: click points to select, drag points to move them, Shift+drag for box select.':'Vertex edit mode off.');updateButtons()});
+addVertexBtn.addEventListener('click',()=>{if(!lineOnly())return;mode=mode==='add'?null:'add';selectedSegmentIndex=null;if(mode==='add')setStatus('Add Vertex mode: click anywhere on the route.');else setStatus('Add Vertex mode off.');drawAll();updateButtons()});
+selectSectionBtn.addEventListener('click',()=>{if(!lineOnly())return;mode=mode==='cut'?null:'cut';cutStart=null;cutEnd=null;selectedSegmentIndex=null;selectedVertexIndices.clear();drawAll();setStatus(mode==='cut'?'Select section: click START, then END anywhere on the route.':'Section selection off.');updateButtons()});
+deleteVertexBtn.addEventListener('click',deleteSelectedVertices);deleteSectionBtn.addEventListener('click',deleteSection);replacementBtn.addEventListener('click',()=>{if(mode==='draw')finishReplacement();else drawReplacement()});joinBtn.addEventListener('click',joinReplacement);undoBtn.addEventListener('click',undo);redoBtn.addEventListener('click',redo);draftBtn.addEventListener('click',saveDraft);clearDraftBtn.addEventListener('click',()=>{clearLocalDraft();notice('Local draft cleared for this route.','info');setStatus('Local draft cleared.',true)});publishBtn.addEventListener('click',publish);reverseBtn.addEventListener('click',reverseRoute);validateBtn.addEventListener('click',validateRoute);resetBtn.addEventListener('click',resetEdits);buildBtn.addEventListener('click',rebuild);compareBtn.addEventListener('click',showOsrmAlternative);simplifyBtn.addEventListener('click',simplifyGeometry);detailRange.addEventListener('input',()=>{detailLabel.textContent=detailRange.value+'%';drawVertices();if(selectedSegmentIndex!==null)drawSegmentEdit();updateInfo();});detail100Btn.addEventListener('click',()=>{detailRange.value='100';detailLabel.textContent='100%';drawVertices();if(selectedSegmentIndex!==null)drawSegmentEdit();updateInfo();setStatus('Showing all geometry vertices again.',true);});
+map.on('click',e=>{if(!selectedRoute)return;if(mode==='add'){addVertexAtClick(e.latlng);return}if(mode==='draw'){addReplacementPoint(e.latlng);return}});
+// Shift-drag box selection for vertex editing
+map.on('mousedown',e=>{if(mode!=='vertex'||!e.originalEvent.shiftKey)return;L.DomEvent.stopPropagation(e.originalEvent);map.dragging.disable();if(map.boxZoom)map.boxZoom.disable();boxState={start:e.containerPoint,current:e.containerPoint,rect:L.DomUtil.create('div','leaflet-zoom-animated')};boxState.rect.style.position='absolute';boxState.rect.style.border='2px dashed #c62828';boxState.rect.style.background='rgba(198,40,40,.10)';map.getPanes().overlayPane.appendChild(boxState.rect);updateBox(e.containerPoint)});
+map.on('mousemove',e=>{if(!boxState)return;boxState.current=e.containerPoint;updateBox(e.containerPoint)});
+map.on('mouseup',e=>{if(!boxState)return;const a=boxState.start,b=e.containerPoint;const minX=Math.min(a.x,b.x),maxX=Math.max(a.x,b.x),minY=Math.min(a.y,b.y),maxY=Math.max(a.y,b.y);selectedVertexIndices.clear();if(lineOnly()){currentCoords().forEach((c,i)=>{const p=map.latLngToContainerPoint([c[1],c[0]]);if(p.x>=minX&&p.x<=maxX&&p.y>=minY&&p.y<=maxY)selectedVertexIndices.add(i)})}boxState.rect.remove();boxState=null;map.dragging.enable();if(map.boxZoom)map.boxZoom.enable();drawVertices();updateInfo();setStatus(`${selectedVertexIndices.size} point${selectedVertexIndices.size===1?'':'s'} selected by box.`)});
+function updateBox(pt){if(!boxState)return;const a=boxState.start,b=pt;const x=Math.min(a.x,b.x),y=Math.min(a.y,b.y),w=Math.abs(a.x-b.x),h=Math.abs(a.y-b.y);Object.assign(boxState.rect.style,{left:x+'px',top:y+'px',width:w+'px',height:h+'px'})}
+// Help controls
+$('helpMinBtn').addEventListener('click',()=>{$('helpPanel').classList.toggle('collapsed')});$('helpCloseBtn').addEventListener('click',()=>{$('helpPanel').classList.add('hidden');$('helpOpenBtn').style.display='block'});$('helpOpenBtn').addEventListener('click',()=>{$('helpPanel').classList.remove('hidden');$('helpOpenBtn').style.display='none'});
+// Route layer clicks are managed by drawRoute; this keeps section selection precise.
+updateButtons();setTimeout(()=>map.invalidateSize(),100);window.addEventListener('resize',()=>map.invalidateSize());loadRoutes();
+</script>
+</body>
+</html>
