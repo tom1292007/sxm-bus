@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>SXM Bus</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--bg:#f5f8fc;--card:#fff;--text:#112033;--muted:#65758b;--border:#dce4ee;--accent:#2563eb}
+*{box-sizing:border-box}html,body{margin:0;width:100%;min-height:100%;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+header{background:#0c1728;color:#fff;padding:16px;position:sticky;top:0;z-index:1001}.title-row{display:flex;align-items:center;justify-content:space-between;gap:10px}.brand{font-size:22px;font-weight:800}.tag{font-size:11px;background:rgba(255,255,255,.1);padding:6px 9px;border-radius:999px}.sub{font-size:12px;color:#b7c4d6;margin-top:3px}
+#map{height:54vh;min-height:390px;width:100%;background:#e9eef5}.panel{max-width:1000px;margin:0 auto;padding:12px}.card{background:#fff;border:1px solid var(--border);border-radius:16px;padding:12px;margin-bottom:10px;box-shadow:0 2px 10px rgba(15,23,42,.04)}
+button,select{font:inherit}.primary{border:0;border-radius:11px;padding:11px 13px;font-weight:700;cursor:pointer;background:var(--accent);color:#fff}.primary:disabled{opacity:.6;cursor:not-allowed}
+.gps-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.gps-status{font-size:12px;color:var(--muted)}
+.route-row{display:grid;grid-template-columns:1fr;gap:8px}.route-select{width:100%;padding:11px;border-radius:10px;border:1px solid var(--border);background:#fff;color:var(--text)}.route-help{font-size:11px;color:var(--muted)}
+.nearby-title{display:flex;align-items:center;justify-content:space-between;gap:8px}.small{font-size:11px;color:var(--muted)}
+.bus{border:1px solid var(--border);border-radius:12px;padding:10px;margin-top:8px;display:flex;justify-content:space-between;gap:10px;align-items:center}.bus-main{min-width:0}.bus-id{font-weight:800}.bus-route{font-size:12px;color:var(--muted);margin-top:3px}.eta{font-size:19px;font-weight:800;white-space:nowrap}.eta span{display:block;font-size:10px;color:var(--muted);font-weight:600;text-align:right}
+.note{font-size:12px;color:var(--muted);line-height:1.45;margin-top:8px}.legend{display:flex;flex-wrap:wrap;gap:8px}.legend-item{font-size:11px;display:flex;align-items:center;gap:5px;background:#f4f7fb;border-radius:999px;padding:6px 8px;cursor:pointer}.dot{width:18px;height:5px;border-radius:99px}
+.map-error{display:none;margin-top:8px;color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:9px;font-size:12px}.pickup-info{margin-top:9px;padding:10px 11px;border-radius:10px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;font-size:12px;line-height:1.45}.status-chip{display:inline-block;padding:3px 7px;border-radius:999px;font-size:10px;font-weight:800;background:#eef2ff;color:#3730a3}.status-chip.warn{background:#fef3c7;color:#92400e}
+.direction-modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;z-index:5000;padding:18px}.direction-modal.show{display:flex}.direction-card{background:#fff;border-radius:18px;max-width:430px;width:100%;padding:20px;box-shadow:0 20px 60px rgba(15,23,42,.28)}.direction-card h3{margin:0 0 6px;font-size:20px}.direction-card p{margin:0 0 14px;color:var(--muted);font-size:12px}.direction-options{display:grid;gap:9px}.direction-option{width:100%;text-align:left;background:#f5f8fc;border:1px solid var(--border);color:var(--text);padding:12px;border-radius:12px}.direction-option:hover{border-color:var(--accent);background:#eff6ff}.direction-cancel{margin-top:10px;width:100%;border:0;background:#eef2f7;color:var(--text);padding:11px;border-radius:11px}
+@media(min-width:900px){#map{height:58vh}.desktop-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}}
+</style>
+</head>
+<body>
+<header><div class="title-row"><div><div class="brand">🚌 SXM Bus</div><div class="sub">Find the next bus near you</div></div><div class="tag">Live</div></div></header>
+<div id="map"></div>
+<div class="panel">
+  <div class="card">
+    <div class="route-row">
+      <label for="routeSelect"><b>Choose a route</b></label>
+      <select id="routeSelect" class="route-select"><option value="" disabled selected>Choose a route…</option></select>
+      <div class="route-help">The map shows Line A only. Select a route to choose your travel direction.</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="gps-row"><button class="primary" id="locateBtn">Use My Location</button><div class="gps-status" id="gpsStatus">Location not yet selected</div></div>
+    <div class="note">There are no fixed bus stops. The app uses your current location to find approaching buses and the nearest point on the selected route.</div>
+    <div id="pickupInfo" class="pickup-info" style="display:none"></div>
+    <div id="mapError" class="map-error"></div>
+  </div>
+  <div class="desktop-grid">
+    <div class="card"><div class="nearby-title"><b>Nearby buses</b><span class="small" id="nearbyHint">Allow location for ETAs</span></div><div id="busResults"><div class="small" style="margin-top:8px">Waiting for live buses…</div></div></div>
+    <div class="card"><div class="nearby-title"><b>Routes</b><span class="small">Colors match the map</span></div><div class="legend" id="legend"></div></div>
+  </div>
+</div>
+<div class="direction-modal" id="directionModal"><div class="direction-card"><h3 id="directionModalTitle">Choose your direction</h3><p id="directionModalText"></p><div class="direction-options" id="directionOptions"></div><button class="direction-cancel" id="directionCancel">Cancel</button></div></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(() => {
+'use strict';
+const SUPABASE_URL='https://enqyrmpdaxuelqlgevnl.supabase.co';
+const SUPABASE_KEY='sb_publishable_J_P6bfidx389dnZJc3H43A_vK3ccYnW';
+const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const COLORS=['#2563eb','#16a34a','#dc2626','#ea580c','#7c3aed','#0891b2','#db2777','#92400e','#0f766e','#ca8a04','#be123c','#0369a1','#15803d','#b45309','#6d28d9','#c2410c','#4338ca','#047857','#a21caf','#0e7490'];
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+let map=null,routes=[],buses=[],families=[],selectedFamilyKey='',selectedRouteId='',userLatLng=null,userMarker=null,pickupMarker=null;
+const markers=new Map(),routeLayers=new Map(),colorMap=new Map();
+
+const norm=s=>String(s??'').trim().toUpperCase().replace(/[-_ ]/g,'');
+const cleanText=v=>String(v??'').trim().replace(/\s+/g,' ');
+const lineCode=r=>cleanText(r?.line_code).toUpperCase().replace(/[-_ ]/g,'');
+const lineToken=r=>{const c=lineCode(r);if(/^LINE\d+[AB]$/.test(c))return c.replace(/^LINE/,'');if(/^L\d+[AB]$/.test(c))return c.slice(1);if(/^F\d+[AB]$/.test(c))return c;const n=cleanText(r?.line_number).match(/\d+/)?.[0]||c.match(/\d+/)?.[0]||'';const v=norm(r?.variant).includes('B')?'B':(norm(r?.variant).includes('A')?'A':'');return n?n+v:(c||'ROUTE')};
+const isB=r=>norm(r?.variant)==='B'||norm(r?.variant)==='LINEB'||norm(r?.variant).includes('LINEB')||lineCode(r).endsWith('B');
+const isA=r=>norm(r?.variant)==='A'||norm(r?.variant)==='LINEA'||norm(r?.variant).includes('LINEA')||lineCode(r).endsWith('A');
+const familyKey=r=>{const region=cleanText(r?.region).toUpperCase();const c=lineCode(r);return `${region}::${c||cleanText(r?.route_name).toUpperCase()}`};
+function routeEndpoints(r){let a=cleanText(r?.origin),b=cleanText(r?.destination);if(a&&b)return {origin:a,destination:b};const d=cleanText(r?.direction);const m=d.match(/^(.*?)\s*(?:->|→|\s+to\s+)\s*(.*?)$/i);return m&&cleanText(m[1])&&cleanText(m[2])?{origin:cleanText(m[1]),destination:cleanText(m[2])}:{origin:'',destination:''}}
+function displayRouteName(r){const t=lineToken(r);const e=routeEndpoints(r);if(e.origin&&e.destination)return `LINE ${t}: ${e.origin.toUpperCase()} -> ${e.destination.toUpperCase()}`;const d=cleanText(r?.direction);if(d)return `LINE ${t}: ${d.toUpperCase().replace(/→/g,'->')}`;const n=cleanText(r?.route_name);return n?`LINE ${t}: ${n.toUpperCase()}`:`LINE ${t}`}
+const routeTitle=displayRouteName;
+function routeSort(a,b){const ta=lineToken(a),tb=lineToken(b),ma=ta.match(/(\d+)([AB])?$/),mb=tb.match(/(\d+)([AB])?$/);const na=ma?Number(ma[1]):9999,nb=mb?Number(mb[1]):9999;if(na!==nb)return na-nb;const va=ma?.[2]==='B'?1:0,vb=mb?.[2]==='B'?1:0;if(va!==vb)return va-vb;return String(a.region||'').localeCompare(String(b.region||''))||displayRouteName(a).localeCompare(displayRouteName(b))}
+const colorFor=r=>colorMap.get(String(r?.id))||COLORS[Math.max(0,(Number(r?.line_number)||1)-1)%COLORS.length];
+const busOnline=b=>b?.is_active===true && (Date.now()-new Date(b.last_seen||b.recorded_at||0).getTime()<60000);
+const hav=(a,b,c,d)=>{const R=6371000,p=Math.PI/180,da=(c-a)*p,db=(d-b)*p,x=Math.sin(da/2)**2+Math.cos(a*p)*Math.cos(c*p)*Math.sin(db/2)**2;return 2*R*Math.asin(Math.sqrt(x));};
+
+function geometrySegments(r){
+  const g=r?.road_geometry;
+  if(g){
+    if(g.type==='Feature'){
+      const gg=g.geometry;
+      if(gg?.type==='LineString')return [gg.coordinates||[]];
+      if(gg?.type==='MultiLineString')return gg.coordinates||[];
+    } else if(g.type==='LineString') return [g.coordinates||[]];
+    else if(g.type==='MultiLineString') return g.coordinates||[];
+  }
+  const rp=r?.route_points;
+  if(Array.isArray(rp)&&rp.length>=2){
+    const pts=rp.map(p=>Array.isArray(p)?p:(Array.isArray(p?.coordinates)?p.coordinates:null)).filter(Boolean);
+    if(pts.length>=2)return [pts];
+  }
+  return [];
+}
+function latLngSegments(r){return geometrySegments(r).map(seg=>seg.map(c=>Array.isArray(c)&&c.length>=2?[Number(c[1]),Number(c[0])]:null).filter(p=>p&&Number.isFinite(p[0])&&Number.isFinite(p[1]))).filter(s=>s.length>=2)}
+function latLngs(r){return latLngSegments(r).flat();}
+function offset(points,m){if(!m||points.length<2)return points;const lat0=points.reduce((s,p)=>s+p[0],0)/points.length*Math.PI/180,mLat=111320,mLng=Math.max(1000,111320*Math.cos(lat0)),xy=points.map(p=>({x:p[1]*mLng,y:p[0]*mLat}));return xy.map((p,i)=>{const a=xy[Math.max(0,i-1)],b=xy[Math.min(xy.length-1,i+1)],dx=b.x-a.x,dy=b.y-a.y,l=Math.hypot(dx,dy)||1,nx=-dy/l,ny=dx/l;return[(p.y+ny*m)/mLat,(p.x+nx*m)/mLng]})}
+function showError(msg){$('mapError').textContent=msg;$('mapError').style.display='block'}
+function clearError(){$('mapError').style.display='none'}
+function initMap(){if(!window.L)throw new Error('Leaflet failed to load.');map=L.map('map',{preferCanvas:true}).setView([18.04,-63.06],12);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);setTimeout(()=>map.invalidateSize(),250)}
+
+function buildFamilies(){
+  const grouped=new Map();
+  for(const r of routes){const key=familyKey(r);if(!grouped.has(key))grouped.set(key,[]);grouped.get(key).push(r);}
+  families=[...grouped.entries()].map(([key,items])=>{
+    const a=items.find(isA)||items.find(r=>!isB(r))||items[0];
+    const b=items.find(isB)||items.find(r=>String(r.id)!==String(a?.id));
+    return {key,items,a,b};
+  }).filter(f=>f.a);
+  families.sort((x,y)=>routeSort(x.a,y.a)||String(x.a.region||'').localeCompare(String(y.a.region||'')));
+  colorMap.clear();
+  families.forEach((f,i)=>{for(const r of f.items)colorMap.set(String(r.id),COLORS[i%COLORS.length])});
+}
+
+function buildSelector(){
+  const sel=$('routeSelect');
+  const keepId=selectedRouteId;
+  sel.innerHTML='<option value="" disabled>Choose a route…</option>';
+  routes.slice().sort(routeSort).forEach(r=>{
+    const o=document.createElement('option');
+    o.value=String(r.id);
+    o.textContent=displayRouteName(r);
+    sel.appendChild(o);
+  });
+  sel.value=keepId && [...sel.options].some(o=>o.value===String(keepId)) ? String(keepId) : '';
+}
+function directionsForFamily(f){
+  const out=[];if(f?.a)out.push({route:f.a,label:displayRouteName(f.a)});
+  if(f?.b&&String(f.b.id)!==String(f.a?.id))out.push({route:f.b,label:displayRouteName(f.b)});
+  return out;
+}
+function chooseFamily(f){
+  const opts=directionsForFamily(f);if(!f)return;
+  if(opts.length<=1){selectDirection(opts[0]?.route||f.a);return}
+  $('directionModalTitle').textContent=`${routeTitle(f.a)} — choose direction`;
+  $('directionModalText').textContent='Only the Line A geometry is shown on the map. Choose the direction you want for buses and ETA matching.';
+  const wrap=$('directionOptions');wrap.innerHTML='';
+  opts.forEach(o=>{const b=document.createElement('button');b.className='direction-option';b.innerHTML=`<strong>${esc(o.label)}</strong><br><span class="small">${esc(o.route.direction||'')}</span>`;b.onclick=()=>{$('directionModal').classList.remove('show');selectDirection(o.route)};wrap.appendChild(b)});
+  $('directionModal').classList.add('show');
+}
+function selectDirection(route){selectedRouteId=String(route.id);selectedFamilyKey=familyKey(route);buildSelector();applySelection()}
+$('directionCancel').onclick=()=>$('directionModal').classList.remove('show');
+$('directionModal').addEventListener('click',e=>{if(e.target.id==='directionModal')$('directionModal').classList.remove('show')});
+$('routeSelect').addEventListener('change',()=>{
+  const r=routes.find(x=>String(x.id)===String($('routeSelect').value));
+  if(!r)return;
+  selectedRouteId=String(r.id);
+  selectedFamilyKey=familyKey(r);
+  applySelection();
+});
+
+function drawRoutes(){
+  for(const l of routeLayers.values())map.removeLayer(l);
+  routeLayers.clear();
+  const all=[];
+  const LINE_OFFSETS={L1:-12,L2:-6,L3:0,L4:6,L5:12,F1:-12,F2:-6,F3:6,F4:12};
+  families.forEach((f,idx)=>{
+    const r=f.a,segs=latLngSegments(r);if(!segs.length)return;
+    const color=colorFor(r),group=L.layerGroup().addTo(map);
+    const offsetMeters=LINE_OFFSETS[String(r.line_code||'').toUpperCase()] ?? 0;
+    for(const pts0 of segs){
+      const pts=offset(pts0,offsetMeters);if(pts.length<2)continue;
+      const line=L.polyline(pts,{color,weight:5,opacity:.92,lineCap:'round',lineJoin:'round'});
+      line.bindTooltip(esc(routeTitle(r)),{sticky:true});
+      const open=()=>chooseFamily(f);
+      line.on('click',e=>{L.DomEvent.stopPropagation(e);open()});
+      line.bindPopup(`<div><b style="color:${color}">${esc(routeTitle(r))}</b><br><span style="font-size:12px">Click to choose travel direction.</span></div>`);
+      line.addTo(group);
+      const hit=L.polyline(pts,{color:'#000',weight:20,opacity:0,interactive:true});
+      hit.on('click',e=>{L.DomEvent.stopPropagation(e);open()});
+      hit.addTo(group);
+      all.push(...pts);
+    }
+    routeLayers.set(String(r.id),group);
+  });
+  if(all.length){try{map.fitBounds(L.latLngBounds(all).pad(.05))}catch(e){}}
+}
+
+function buildLegend(){
+  const el=$('legend');
+  el.innerHTML='';
+  routes.slice().sort(routeSort).forEach(r=>{
+    const d=document.createElement('div');
+    d.className='legend-item';
+    d.innerHTML=`<span class="dot" style="background:${colorFor(r)}"></span>${esc(displayRouteName(r))}`;
+    d.onclick=()=>{selectedRouteId=String(r.id);selectedFamilyKey=familyKey(r);buildSelector();applySelection()};
+    el.appendChild(d);
+  });
+}
+
+function routeForBus(b){
+  const code=lineCode(b);
+  if(code){const x=routes.find(r=>lineCode(r)===code);if(x)return x}
+  const rid=Number(b?.route_id);
+  if(Number.isFinite(rid)){const x=routes.find(r=>Number(r.id)===rid);if(x)return x}
+  return null;
+}
+function busMatches(b){
+  if(!selectedRouteId)return true;
+  const r=routeForBus(b);return r && String(r.id)===String(selectedRouteId);
+}
+function refreshMarkers(){const active=new Set();for(const b of buses.filter(busMatches)){const lat=Number(b.latitude),lng=Number(b.longitude);if(!Number.isFinite(lat)||!Number.isFinite(lng))continue;const id=b.bus_id||String(b.id);active.add(id);const r=routeForBus(b),c=colorFor(r||{}),online=busOnline(b),icon=L.divIcon({className:'',iconSize:[54,38],iconAnchor:[27,19],html:`<div style="width:54px;height:34px;border-radius:9px;border:3px solid white;background:${c};display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,.35)">🚌 ${esc(String(id).replace(/^BUS_/i,''))}</div>`});let m=markers.get(id);if(!m){m=L.marker([lat,lng],{icon,zIndexOffset:2000,interactive:true}).addTo(map);markers.set(id,m)}else{m.setLatLng([lat,lng]);m.setIcon(icon)}const e=r?eta(b,r):null;const dist=Number.isFinite(Number(b.distance_to_route_meters))?Math.round(Number(b.distance_to_route_meters)):null;m.bindPopup(`<b>${esc(id)}</b><br>${esc(r?displayRouteName(r):'Bus location')}<br>${esc(r?.direction||b.direction||'')}<br>Status: <b>${online?'ONLINE':'OFFLINE'}</b>${dist!==null?`<br>Distance from route: ${dist} m`:''}${e?.minutes!=null?`<br>ETA: <b>${e.minutes<1?'<1':Math.round(e.minutes)} min</b>`:''}`)}for(const [id,m] of markers){if(!active.has(id)){map.removeLayer(m);markers.delete(id)}}}
+function nearestPoint(lat,lng,r){const pts=latLngs(r);if(pts.length<2)return{distance:Infinity,progress:0,lat:null,lng:null};let best={distance:Infinity,progress:0,lat:null,lng:null},cum=0;for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1],lat0=((a[0]+b[0])/2)*Math.PI/180,mx=111320*Math.cos(lat0),my=111320,ax=a[1]*mx,ay=a[0]*my,bx=b[1]*mx,by=b[0]*my,px=lng*mx,py=lat*my,dx=bx-ax,dy=by-ay,l2=dx*dx+dy*dy,t=l2?Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/l2)):0,qx=ax+t*dx,qy=ay+t*dy,d=hav(lat,lng,qy/my,qx/mx),seg=hav(a[0],a[1],b[0],b[1]);if(d<best.distance)best={distance:d,progress:cum+t*seg,lat:qy/my,lng:qx/mx};cum+=seg}return best}
+function eta(bus,r){if(!userLatLng)return null;const p=nearestPoint(userLatLng[0],userLatLng[1],r),bp=Number(bus.route_progress_meters);if(!Number.isFinite(bp)||p.distance>500)return null;const delta=p.progress-bp;const speed=Math.max(4,Math.min(20,Number(bus.speed)||7));const state=delta>=-60?'approaching':'away';if(state==='away')return {minutes:null,state,pickupDistance:p.distance,routeDistance:p.distance};return {minutes:Math.max(.5,delta/speed/60),state,pickupDistance:p.distance,routeDistance:p.distance}}
+function renderResults(){const el=$('busResults');if(!userLatLng){el.innerHTML='<div class="small">Tap “Use My Location” to find approaching buses.</div>';return}const rForPickup=selectedRouteId?routes.find(x=>String(x.id)===String(selectedRouteId)):null;if(rForPickup){const p=nearestPoint(userLatLng[0],userLatLng[1],rForPickup);const pi=$('pickupInfo');if(p.lat!=null){if(pickupMarker)map.removeLayer(pickupMarker);pickupMarker=L.circleMarker([p.lat,p.lng],{radius:7,color:'#1d4ed8',fillColor:'#60a5fa',fillOpacity:.95,weight:3}).addTo(map);pickupMarker.bindPopup('Suggested pickup point on the selected route');pi.style.display='block';pi.innerHTML=`<b>Suggested pickup point</b><br>${Math.round(p.distance)} m from your location on <b>${esc(displayRouteName(rForPickup))}</b>.`}}else{$('pickupInfo').style.display='none';if(pickupMarker){map.removeLayer(pickupMarker);pickupMarker=null}}const arr=[];for(const b of buses.filter(busMatches)){if(!busOnline(b))continue;const r=routeForBus(b);if(!r)continue;const e=eta(b,r);if(e&&e.state==='approaching'&&e.minutes!=null)arr.push({b,r,e})}arr.sort((a,b)=>a.e.minutes-b.e.minutes);$('nearbyHint').textContent=arr.length?`${arr.length} approaching bus${arr.length===1?'':'es'}`:'No approaching buses';el.innerHTML=arr.length?arr.slice(0,8).map(x=>`<div class="bus"><div class="bus-main"><div class="bus-id" style="color:${colorFor(x.r)}">${esc(x.b.bus_id||'Bus')}</div><div class="bus-route">${esc(displayRouteName(x.r))}<br>${esc(x.r.direction||'')}<br><span class="status-chip">APPROACHING</span></div></div><div class="eta">${x.e.minutes<1?'<1':Math.round(x.e.minutes)}<span>min ETA</span></div></div>`).join(''):'<div class="small">No active bus is currently approaching your location.</div>'}
+function applySelection(){
+  refreshMarkers();
+  renderResults();
+  if(selectedRouteId){const r=routes.find(x=>String(x.id)===selectedRouteId);if(r){const pts=latLngs(r);if(pts.length)try{map.fitBounds(L.latLngBounds(pts).pad(.12))}catch(e){}}}
+}
+function requestLocation(){const s=$('gpsStatus');if(!navigator.geolocation){s.textContent='GPS is not supported';return}s.textContent='Requesting GPS…';navigator.geolocation.getCurrentPosition(pos=>{userLatLng=[pos.coords.latitude,pos.coords.longitude];s.textContent=`GPS ±${Math.round(pos.coords.accuracy)} m`;if(userMarker)map.removeLayer(userMarker);userMarker=L.marker(userLatLng,{title:'Your location'}).addTo(map);map.setView(userLatLng,15,{animate:true});renderResults()},err=>s.textContent=err.message||'Could not get location',{enableHighAccuracy:true,timeout:10000,maximumAge:10000})}
+
+async function loadData(){
+  const rr=await db.from('routes').select('id,route_name,direction,region,line_number,line_code,variant,origin,destination,road_geometry,route_points,road_distance_meters,road_duration_seconds,active').eq('active',true);
+  const bb=await db.from('bus_locations').select('*').order('bus_id');
+  if(rr.error)throw rr.error;if(bb.error)throw bb.error;
+  routes=rr.data||[];
+  buses=(bb.data||[]).filter(b=>Number.isFinite(Number(b.latitude))&&Number.isFinite(Number(b.longitude)));
+  buildFamilies();buildSelector();buildLegend();drawRoutes();applySelection();
+}
+function subscribe(){try{db.channel('passenger-route-sync-v2').on('postgres_changes',{event:'*',schema:'public',table:'routes'},loadData).subscribe()}catch(e){console.warn(e)}}
+try{initMap()}catch(e){console.error(e);showError(e.message)}
+$('locateBtn').onclick=requestLocation;
+loadData().catch(e=>{console.error(e);showError('Could not load live data: '+(e.message||e))});
+setInterval(()=>loadData().catch(e=>showError('Live update error: '+(e.message||e))),5000);
+setInterval(()=>{if(map)refreshMarkers()},3000);
+window.addEventListener('resize',()=>map&&map.invalidateSize());
+subscribe();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SXM Bus — Admin Control</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root{--bg:#0b1220;--panel:#111827;--panel2:#172033;--text:#eef4ff;--muted:#9fb0c7;--border:#263349;--good:#2dd4bf;--warn:#fbbf24;--bad:#fb7185;}
+    *{box-sizing:border-box}
+    html,body{margin:0;width:100%;height:100%;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+    body{overflow:hidden}
+    header{height:68px;padding:12px 18px;background:#0e1729;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px}
+    h1{font-size:20px;margin:0}.sub{font-size:12px;color:var(--muted);margin-top:3px}.pill{padding:7px 10px;border:1px solid var(--border);border-radius:999px;font-size:12px;color:var(--muted);background:#0b1322}
+    .layout{display:grid;grid-template-columns:380px minmax(0,1fr);height:calc(100vh - 68px);min-height:0}
+    aside{min-height:0;overflow:auto;border-right:1px solid var(--border);background:var(--panel);padding:14px}
+    .section{margin-bottom:16px}.section h2{font-size:13px;text-transform:uppercase;letter-spacing:.09em;color:#b9c7da;margin:0 0 10px}
+    .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.stat{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px}.stat b{display:block;font-size:22px}.stat span{font-size:11px;color:var(--muted)}
+    .legend{display:grid;grid-template-columns:1fr 1fr;gap:7px}.legend-item{display:flex;align-items:center;gap:8px;font-size:12px;color:#dce6f4}.swatch{width:22px;height:6px;border-radius:999px;box-shadow:0 0 0 2px rgba(255,255,255,.15)}.route-list{display:flex;flex-direction:column;gap:7px}.route-select{width:100%;padding:10px 11px;border-radius:9px;border:1px solid var(--border);background:#0e1729;color:var(--text);font-size:12px}.route-select:focus{outline:2px solid #2563eb;outline-offset:1px}.selected-route-note{font-size:10px;color:var(--muted);margin-top:6px}.route-item.selected{border-color:#fff;box-shadow:0 0 0 1px rgba(255,255,255,.3) inset}.route-item{display:grid;grid-template-columns:8px minmax(0,1fr);gap:8px;align-items:start;padding:8px 9px;background:#0e1729;border:1px solid var(--border);border-radius:10px}.route-bar{width:8px;min-height:42px;border-radius:999px}.route-title{font-size:12px;font-weight:700;color:#eef4ff;line-height:1.25}.route-meta{font-size:10px;color:var(--muted);margin-top:3px;line-height:1.4}.route-direction{font-size:10px;color:#d7e2f0;margin-top:2px}
+    .bus-card{border:1px solid var(--border);background:#0e1729;border-radius:12px;padding:10px;margin-bottom:8px;cursor:pointer}.bus-card:hover{background:#152137}.bus-top{display:flex;justify-content:space-between;gap:8px}.bus-id{font-weight:700}.badge{font-size:10px;padding:3px 6px;border-radius:999px;background:#172237}.online{color:#5eead4}.offline{color:#fb7185}.warn{color:#fbbf24}
+    .line{font-size:12px;margin-top:6px;color:#d7e2f0}.meta{font-size:11px;color:var(--muted);margin-top:5px;line-height:1.45}.progress{height:7px;background:#243044;border-radius:999px;overflow:hidden;margin-top:7px}.progress>div{height:100%;border-radius:999px}.empty{font-size:12px;color:var(--muted);padding:10px 0}.alert-item{border:1px solid var(--border);background:#24151a;border-radius:10px;padding:9px;margin-bottom:7px;font-size:11px;line-height:1.4}.alert-item strong{color:#fecaca}.alert-ok{font-size:11px;color:#86efac}
+    .map-wrap{position:relative;min-width:0;min-height:0}.map{width:100%;height:100%;min-height:0}
+    .map-error{position:absolute;top:14px;left:14px;right:14px;z-index:1200;display:none;background:#7f1d1d;color:white;padding:11px 13px;border-radius:10px;box-shadow:0 3px 15px rgba(0,0,0,.25);font-size:12px}
+    .leaflet-popup-content{margin:10px 12px}.popup-title{font-weight:700;font-size:14px}.popup-meta{font-size:12px;line-height:1.5;margin-top:5px}
+    .direction-modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;z-index:3000;padding:18px}.direction-modal.show{display:flex}.direction-card{background:#111827;border:1px solid var(--border);border-radius:16px;max-width:430px;width:100%;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.35)}.direction-card h3{margin:0 0 7px;color:#f8fafc;font-size:17px}.direction-card p{margin:0 0 13px;color:var(--muted);font-size:11px;line-height:1.45}.direction-options{display:grid;gap:8px}.direction-option{width:100%;text-align:left;background:#172033;color:#eef4ff;border:1px solid var(--border);padding:11px;border-radius:11px;cursor:pointer}.direction-option:hover{border-color:#64748b}.direction-cancel{margin-top:10px;width:100%;background:#243044;color:#eef4ff;border:1px solid var(--border);padding:10px;border-radius:10px;cursor:pointer}
+    @media(max-width:900px){body{overflow:auto}.layout{grid-template-columns:1fr;height:auto}.map-wrap{height:62vh;min-height:430px}aside{order:2;border-right:0;border-top:1px solid var(--border);max-height:none}}
+  </style>
+</head>
+<body>
+<header><div><h1>SXM Bus Control</h1><div class="sub">Live fleet, routes and trip progress</div></div><div class="pill" id="updated">Starting…</div></header>
+<div class="layout">
+  <aside>
+    <div class="section"><h2>Fleet</h2><div class="stats">
+      <div class="stat"><b id="statTotal">0</b><span>Active buses</span></div>
+      <div class="stat"><b id="statOnline">0</b><span>Online now</span></div>
+      <div class="stat"><b id="statOffRoute">0</b><span>Off route</span></div>
+      <div class="stat"><b id="statTrips">0</b><span>Live trips</span></div>
+    </div></div>
+    <div class="section"><h2>Select Route</h2>
+      <select id="routeSelect" class="route-select"><option value="" disabled selected>Choose a route…</option></select>
+      <div class="selected-route-note" id="selectedRouteNote">Showing buses from all routes.</div>
+    </div>
+    <div class="section"><h2>Routes</h2><div class="route-list" id="routeList"><div class="empty">Loading routes…</div></div></div>
+    <div class="section"><h2>Route colors</h2><div class="legend" id="legend"></div></div>
+    <div class="section"><h2>Live buses</h2><div id="busList"><div class="empty">Waiting for data…</div></div></div>
+    <div class="section"><h2>Alerts</h2><div id="alertList"><div class="empty">No active alerts.</div></div></div>
+  </aside>
+  <div class="map-wrap"><div id="map" class="map"></div><div id="mapError" class="map-error"></div></div>
+</div>
+<div class="direction-modal" id="directionModal"><div class="direction-card"><h3 id="directionModalTitle">Choose direction</h3><p id="directionModalText"></p><div class="direction-options" id="directionOptions"></div><button class="direction-cancel" id="directionCancel">Cancel</button></div></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(() => {
+  'use strict';
+  const SUPABASE_URL='https://enqyrmpdaxuelqlgevnl.supabase.co';
+  const SUPABASE_KEY='sb_publishable_J_P6bfidx389dnZJc3H43A_vK3ccYnW';
+  const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+  const ROUTE_COLORS=['#2563eb','#16a34a','#dc2626','#ea580c','#7c3aed','#0891b2','#db2777','#92400e','#0f766e','#ca8a04','#be123c','#0369a1','#15803d','#b45309','#6d28d9','#0f766e','#c2410c','#4338ca','#047857','#a21caf'];
+  const LINE_OFFSETS={L1:-12,L2:-6,L3:0,L4:6,L5:12,F1:-12,F2:-6,F3:6,F4:12};
+  const routeColorMap=new Map();
+  const DEFAULT_CENTER=[18.04,-63.06];
+  let map=null,routes=[],buses=[],selectedRouteId="",selectedFamilyKey="";
+  const routeLayers=new Map(),busMarkers=new Map();
+
+  const $=id=>document.getElementById(id);
+  const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const colorForRoute=r=>routeColorMap.get(String(r?.id))||ROUTE_COLORS[0];
+  const cleanText=v=>String(v??'').trim().replace(/\s+/g,' ');
+  const lineCode=r=>cleanText(r?.line_code).toUpperCase().replace(/[-_ ]/g,'');
+  const lineToken=r=>{const c=lineCode(r);if(/^LINE\d+[AB]$/.test(c))return c.replace(/^LINE/,'');if(/^L\d+[AB]$/.test(c))return c.slice(1);if(/^F\d+[AB]$/.test(c))return c;const n=cleanText(r?.line_number).match(/\d+/)?.[0]||c.match(/\d+/)?.[0]||'';const v=String(r?.variant||'').toUpperCase().includes('B')?'B':(String(r?.variant||'').toUpperCase().includes('A')?'A':'');return n?n+v:(c||'ROUTE')};
+  function endpoints(r){const a=cleanText(r?.origin),b=cleanText(r?.destination);if(a&&b)return {a,b};const d=cleanText(r?.direction),m=d.match(/^(.*?)\s*(?:->|→|\s+to\s+)\s*(.*?)$/i);return m?{a:cleanText(m[1]),b:cleanText(m[2])}:{a:'',b:''}}
+  const displayName=r=>{const t=lineToken(r),e=endpoints(r);if(e.a&&e.b)return `LINE ${t}: ${e.a.toUpperCase()} -> ${e.b.toUpperCase()}`;const d=cleanText(r?.direction);if(d)return `LINE ${t}: ${d.toUpperCase().replace(/→/g,'->')}`;return r?.route_name?`LINE ${t}: ${cleanText(r.route_name).toUpperCase()}`:`LINE ${t}`};
+  const normalizedVariant=r=>String(r?.variant||'').trim().toUpperCase().replace(/[-_ ]/g,'');
+  const isLineB=r=>normalizedVariant(r)==='LINEB'||normalizedVariant(r)==='B';
+  const isLineA=r=>normalizedVariant(r)==='LINEA'||normalizedVariant(r)==='A';
+  const familyKey=r=>{const region=String(r?.region||'').trim().toUpperCase();const line=String(r?.line_code||'').trim().toUpperCase()||String(r?.line_number||'').trim().toUpperCase();if(line)return `${region}::${line}`;return `${region}::${String(r?.route_name||'').trim().toUpperCase()}`};
+  const formatKm=m=>Number.isFinite(Number(m))?`${(Number(m)/1000).toFixed(1)} km`:'—';
+  const formatTime=ts=>ts?new Date(ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}):'—';
+  const ageSeconds=ts=>ts?(Date.now()-new Date(ts).getTime())/1000:Infinity;
+  const busIsOnline=b=>b?.is_active===true && ageSeconds(b.last_seen||b.recorded_at)<60;
+
+  function showMapError(msg){const el=$('mapError');el.textContent=msg;el.style.display='block';}
+  function clearMapError(){$('mapError').style.display='none';}
+
+  function geometrySegments(r){
+    const g=r?.road_geometry;
+    if(!g)return [];
+    if(g.type==='Feature'){
+      const gg=g.geometry;
+      if(gg?.type==='LineString')return [gg.coordinates||[]];
+      if(gg?.type==='MultiLineString')return gg.coordinates||[];
+      return [];
+    }
+    if(g.type==='LineString')return [g.coordinates||[]];
+    if(g.type==='MultiLineString')return g.coordinates||[];
+    const rp=r?.route_points;
+    if(Array.isArray(rp)&&rp.length>=2){
+      const pts=rp.map(p=>Array.isArray(p)?p:(Array.isArray(p?.coordinates)?p.coordinates:null)).filter(Boolean);
+      if(pts.length>=2)return [pts];
+    }
+    return [];
+  }
+  function toLatLngSegments(r){
+    return geometrySegments(r).map(seg=>seg.map(c=>Array.isArray(c)&&c.length>=2?[Number(c[1]),Number(c[0])]:null).filter(p=>p&&Number.isFinite(p[0])&&Number.isFinite(p[1]))).filter(seg=>seg.length>=2);
+  }
+  function toLatLngs(r){return toLatLngSegments(r).flat();}
+
+  // Visual-only geometry helpers. Database geometry is never changed.
+  function offsetLatLngs(points,meters){
+    if(!meters||points.length<2)return points;
+    const lat0=points.reduce((s,p)=>s+p[0],0)/points.length*Math.PI/180;
+    const mLat=111320, mLng=Math.max(1000,111320*Math.cos(lat0));
+    const xy=points.map(p=>({x:p[1]*mLng,y:p[0]*mLat}));
+    return xy.map((p,i)=>{
+      const a=xy[Math.max(0,i-1)],b=xy[Math.min(xy.length-1,i+1)];
+      const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy)||1;
+      const nx=-dy/len,ny=dx/len;
+      return [(p.y+ny*meters)/mLat,(p.x+nx*meters)/mLng];
+    });
+  }
+
+  function routeForBus(b){
+    const code=lineCode(b);
+    if(code){const found=routes.find(r=>lineCode(r)===code);if(found)return found;}
+    const id=Number(b?.route_id);
+    if(Number.isFinite(id)){const found=routes.find(r=>Number(r.id)===id);if(found)return found;}
+    return routes.find(r=>lineCode(r)===code && r.variant===b?.variant)||null;
+  }
+
+  function initMap(){
+    if(!window.L)throw new Error('Leaflet failed to load. Check your internet connection or GitHub Pages deployment.');
+    map=L.map('map',{preferCanvas:true,zoomControl:true}).setView(DEFAULT_CENTER,12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);
+    setTimeout(()=>map.invalidateSize(),200);
+  }
+
+  function buildFamilies(){
+    const grouped=new Map();
+    for(const r of routes){const key=familyKey(r);if(!grouped.has(key))grouped.set(key,[]);grouped.get(key).push(r);}
+    return [...grouped.entries()].map(([key,items])=>({key,items,a:items.find(isLineA)||items.find(r=>!isLineB(r))||items[0],b:items.find(isLineB)||items.find(r=>String(r.id)!==String((items.find(isLineA)||items[0])?.id))})).filter(f=>f.a)
+      .sort((x,y)=>{const a=lineToken(x.a).match(/(\d+)([AB])?$/),b=lineToken(y.a).match(/(\d+)([AB])?$/);const na=a?Number(a[1]):9999,nb=b?Number(b[1]):9999;if(na!==nb)return na-nb;const va=a?.[2]==='B'?1:0,vb=b?.[2]==='B'?1:0;return va-vb||displayName(x.a).localeCompare(displayName(y.a));});
+  }
+
+  function buildRoutePanel(){
+    const families=buildFamilies();
+    routeColorMap.clear();
+    families.forEach((f,i)=>{for(const r of f.items)routeColorMap.set(String(r.id),ROUTE_COLORS[i%ROUTE_COLORS.length])});
+    const select=$('routeSelect');
+    select.innerHTML='<option value="" disabled>Choose a route…</option>';
+    for(const f of families){
+      const o=document.createElement('option');o.value=f.key;
+      o.textContent=displayName(f.a);
+      select.appendChild(o);
+    }
+    select.value=selectedFamilyKey && families.some(f=>f.key===selectedFamilyKey)?selectedFamilyKey:'';
+    $('selectedRouteNote').textContent=selectedRouteId?`Direction selected. Showing buses for the chosen direction.`:'Choose a route, or click a route line on the map.';
+    const legend=$('legend');legend.innerHTML='';
+    for(const f of families){const item=document.createElement('div');item.className='legend-item';item.innerHTML=`<span class="swatch" style="background:${colorForRoute(f.a)}"></span><span>${esc(displayName(f.a))}</span>`;legend.appendChild(item)}
+    const list=$('routeList');list.innerHTML='';
+    if(!families.length){list.innerHTML='<div class="empty">No routes found in Supabase.</div>';return}
+    for(const f of families){
+      const r=f.a,color=colorForRoute(r),item=document.createElement('div');item.className='route-item';
+      const ep=endpoints(r);
+      item.innerHTML=`<div class="route-bar" style="background:${color}"></div><div><div class="route-title">${esc(displayName(r))}</div><div class="route-direction">Click to choose direction</div><div class="route-meta">${ep.a&&ep.b?`${esc(ep.a)} → ${esc(ep.b)}`:'Direction not set'}${r.region?` · ${esc(r.region)}`:''}</div></div>`;
+      item.onclick=()=>chooseDirection(f);
+      list.appendChild(item);
+    }
+  }
+
+  function groupedFamily(route){
+    const items=routes.filter(r=>familyKey(r)===familyKey(route));
+    return {key:familyKey(route),items,a:items.find(isLineA)||items.find(r=>!isLineB(r))||route,b:items.find(isLineB)||items.find(r=>String(r.id)!==String((items.find(isLineA)||items[0])?.id))};
+  }
+
+  function chooseDirection(f){
+    if(!f?.a)return;
+    const opts=[{route:f.a,label:(f.a.origin&&f.a.destination)?`${f.a.origin} → ${f.a.destination}`:(f.a.direction||'Direction A')}];
+    if(f.b&&String(f.b.id)!==String(f.a.id))opts.push({route:f.b,label:(f.b.origin&&f.b.destination)?`${f.b.origin} → ${f.b.destination}`:(f.b.direction||'Return direction')});
+    if(opts.length===1){selectDirection(opts[0].route);return}
+    $('directionModalTitle').textContent=`${displayName(f.a)} — choose direction`;
+    $('directionModalText').textContent='The map shows only the Line A geometry. Choose the direction to use for the bus list.';
+    const wrap=$('directionOptions');wrap.innerHTML='';
+    opts.forEach(opt=>{const btn=document.createElement('button');btn.className='direction-option';btn.innerHTML=`<strong>${esc(opt.label)}</strong><br><span style="font-size:10px;color:var(--muted)">${esc(opt.route.direction||'')}</span>`;btn.onclick=()=>{$('directionModal').classList.remove('show');selectDirection(opt.route)};wrap.appendChild(btn)});
+    $('directionModal').classList.add('show');
+  }
+
+  function selectDirection(route){selectedRouteId=String(route.id);selectedFamilyKey=familyKey(route);applyRouteSelection();}
+
+  function busMatchesSelectedRoute(b){
+    if(!selectedRouteId)return true;
+    const r=routes.find(x=>String(x.id)===String(selectedRouteId));
+    if(!r)return false;
+    const rid=Number(b?.route_id);
+    if(Number.isFinite(rid)&&Number(r.id)===rid)return true;
+    return r.line_code===b?.line_code && r.variant===b?.variant && r.direction===b?.direction;
+  }
+
+  function renderAlerts(){const el=$('alertList');const alerts=[];for(const b of buses){const r=routeForBus(b);const age=ageSeconds(b.last_seen||b.recorded_at);const d=Number(b.distance_to_route_meters);const acc=Number(b.accuracy_meters??b.accuracy);if(b.is_active&&age>60)alerts.push(`<div class="alert-item"><strong>OFFLINE</strong><br>${esc(b.bus_id||'Bus')} has not updated for ${Math.round(age)}s.</div>`);if(Number.isFinite(d)&&d>150)alerts.push(`<div class="alert-item"><strong>OFF ROUTE</strong><br>${esc(b.bus_id||'Bus')} · ${Math.round(d)} m from ${esc(r?displayName(r):'route')}.</div>`);if(Number.isFinite(acc)&&acc>50)alerts.push(`<div class="alert-item"><strong>WEAK GPS</strong><br>${esc(b.bus_id||'Bus')} · accuracy ±${Math.round(acc)} m.</div>`)}el.innerHTML=alerts.length?alerts.slice(0,12).join(''):'<div class="alert-ok">No active alerts.</div>'}
+
+  function highlightSelectedRoute(){
+    for(const [id,group] of routeLayers){
+      const isSelected=!selectedRouteId || String(id)===String(selectedRouteId);
+      group.eachLayer(layer=>{
+        if(layer instanceof L.Polyline){
+          layer.setStyle({opacity:isSelected?.98:.22,weight:5});
+        }
+      });
+    }
+  }
+
+  function applyRouteSelection(){
+    const r=selectedRouteId?routes.find(x=>String(x.id)===String(selectedRouteId)):null;
+    if(r){
+      const pts=toLatLngs(r);
+      if(pts.length)try{map.fitBounds(L.latLngBounds(pts).pad(0.12));}catch(e){}
+      $('selectedRouteNote').textContent=`Selected direction: ${displayName(r)} — ${r.direction||''}. Showing buses for this direction.`;
+    }else{
+      $('selectedRouteNote').textContent='Choose a route, or click a route line on the map.';
+    }
+    renderBuses();
+    redrawBusMarkersForSelection();
+  }
+
+  function redrawBusMarkersForSelection(){
+    const active=new Set();
+    for(const b of buses){
+      if(!busMatchesSelectedRoute(b))continue;
+      const lat=Number(b.latitude),lng=Number(b.longitude);if(!Number.isFinite(lat)||!Number.isFinite(lng))continue;
+      const id=b.bus_id||String(b.id);active.add(id);const r=routeForBus(b),icon=busIcon(b,r);
+      let marker=busMarkers.get(id);
+      if(!marker){marker=L.marker([lat,lng],{icon,zIndexOffset:1000}).addTo(map);busMarkers.set(id,marker)}
+      else{marker.setLatLng([lat,lng]);marker.setIcon(icon)}
+      marker.bindPopup(popupHtml(b,r));
+    }
+    for(const [id,marker] of busMarkers){if(!active.has(id)){map.removeLayer(marker);busMarkers.delete(id)}}
+  }
+
+  $('directionCancel').onclick=()=>$('directionModal').classList.remove('show');
+  $('directionModal').addEventListener('click',e=>{if(e.target.id==='directionModal')$('directionModal').classList.remove('show')});
+
+  function drawRoutes(){
+    for(const l of routeLayers.values())map.removeLayer(l);
+    routeLayers.clear();
+    const all=[];
+    const families=buildFamilies();
+    const LINE_OFFSETS={L1:-12,L2:-6,L3:0,L4:6,L5:12,F1:-12,F2:-6,F3:6,F4:12};
+    families.forEach((f)=>{
+      const r=f.a,segs=toLatLngSegments(r);if(!segs.length)return;
+      const color=colorForRoute(r),group=L.layerGroup().addTo(map);
+      const offsetMeters=LINE_OFFSETS[String(r.line_code||'').toUpperCase()] ?? 0;
+      let ok=false;
+      for(const pts0 of segs){
+        const pts=offsetLatLngs(pts0,offsetMeters);if(pts.length<2)continue;
+        const line=L.polyline(pts,{color,weight:5,opacity:.92,lineCap:'round',lineJoin:'round'});
+        line.bindTooltip(esc(displayName(r)),{sticky:true});
+        const open=()=>chooseDirection(f);
+        line.on('click',e=>{L.DomEvent.stopPropagation(e);open()});
+        line.bindPopup(`<div><b style="color:${color}">${esc(displayName(r))}</b><br><span style="font-size:12px">Click to choose travel direction.</span></div>`);
+        line.addTo(group);
+        const hit=L.polyline(pts,{color:'#000',weight:20,opacity:0,interactive:true});
+        hit.on('click',e=>{L.DomEvent.stopPropagation(e);open()});
+        hit.addTo(group);
+        all.push(...pts);ok=true;
+      }
+      if(ok)routeLayers.set(String(r.id),group);
+    });
+    if(all.length){try{map.fitBounds(L.latLngBounds(all).pad(.05))}catch(e){}}
+  }
+
+  function busIcon(b,r){
+    const color=r?colorForRoute(r):'#475569';
+    const label=esc((b.bus_id||'?').replace(/^BUS_/i,''));
+    return L.divIcon({className:'',iconSize:[48,34],iconAnchor:[24,17],html:`<div style="width:48px;height:30px;border-radius:9px;border:3px solid white;background:${color};box-shadow:0 2px 9px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:11px;">🚌 ${label}</div>`});
+  }
+
+  function popupHtml(b,r){
+    const color=r?colorForRoute(r):'#475569',online=busIsOnline(b);
+    const p=Number(b.route_progress_fraction);const prog=Number.isFinite(p)?Math.max(0,Math.min(1,p))*100:null;
+    return `<div class="popup-title" style="color:${color}">${esc(b.bus_id||'Bus')}</div><div class="popup-meta"><b>${esc(r?displayName(r):(b.route_name||'No route'))}</b><br>${esc(r?.direction||b.direction||'')}<br>Status: <b>${online?'ONLINE':'OFFLINE'}</b><br>Speed: ${Number.isFinite(Number(b.speed))?(Number(b.speed)*3.6).toFixed(0)+' km/h':'—'}<br>Progress: ${prog===null?'—':prog.toFixed(0)+'%'}<br>Remaining: ${formatKm(b.route_remaining_meters)}<br>GPS accuracy: ${Number.isFinite(Number(b.accuracy_meters??b.accuracy))?Number(b.accuracy_meters??b.accuracy).toFixed(0)+' m':'—'}<br>Last seen: ${formatTime(b.last_seen||b.recorded_at)}</div>`;
+  }
+
+  function drawBuses(){
+    const active=new Set();
+    for(const b of buses){
+      const lat=Number(b.latitude),lng=Number(b.longitude);if(!Number.isFinite(lat)||!Number.isFinite(lng))continue;
+      const id=b.bus_id||String(b.id);active.add(id);const r=routeForBus(b),icon=busIcon(b,r);
+      let marker=busMarkers.get(id);
+      if(!marker){marker=L.marker([lat,lng],{icon,zIndexOffset:1000}).addTo(map);busMarkers.set(id,marker)}
+      else{marker.setLatLng([lat,lng]);marker.setIcon(icon)}
+      marker.bindPopup(popupHtml(b,r));
+    }
+    for(const [id,marker] of busMarkers){if(!active.has(id)){map.removeLayer(marker);busMarkers.delete(id)}}
+  }
+
+  function renderBuses(){
+    const list=$('busList');list.innerHTML='';let off=0,online=0,trips=0;
+    const sorted=buses.filter(busMatchesSelectedRoute).sort((a,b)=>String(a.bus_id||'').localeCompare(String(b.bus_id||'')));
+    for(const b of sorted){
+      const r=routeForBus(b),isOnline=busIsOnline(b),distance=Number(b.distance_to_route_meters);if(isOnline)online++;if(Number.isFinite(distance)&&distance>150)off++;if(b.is_active)trips++;
+      const color=r?colorForRoute(r):'#475569',p=Number(b.route_progress_fraction),prog=Number.isFinite(p)?Math.max(0,Math.min(1,p))*100:null;
+      const card=document.createElement('div');card.className='bus-card';
+      card.innerHTML=`<div class="bus-top"><div class="bus-id" style="color:${color}">${esc(b.bus_id||'—')}</div><div class="badge ${isOnline?'online':'offline'}">${isOnline?'ONLINE':'OFFLINE'}</div></div><div class="line">${esc(r?displayName(r):'No assigned route')}</div><div class="meta">${esc(r?.direction||b.direction||'—')}<br>Speed: ${Number.isFinite(Number(b.speed))?(Number(b.speed)*3.6).toFixed(0)+' km/h':'—'} · Remaining: ${formatKm(b.route_remaining_meters)}<br>${Number.isFinite(distance)&&distance>150?'<span class="warn">⚠ Off route</span>':'Accuracy: '+(Number.isFinite(Number(b.accuracy))?Number(b.accuracy).toFixed(0)+' m':'—')}</div>${prog!==null?`<div class="progress"><div style="width:${prog}%;background:${color}"></div></div>`:''}`;
+      card.onclick=()=>{const lat=Number(b.latitude),lng=Number(b.longitude);if(Number.isFinite(lat)&&Number.isFinite(lng)){map.setView([lat,lng],15,{animate:true});busMarkers.get(b.bus_id)?.openPopup()}};
+      list.appendChild(card);
+    }
+    if(!sorted.length)list.innerHTML='<div class="empty">No buses are currently available on this route.</div>';
+    $('statTotal').textContent=sorted.filter(b=>b.is_active).length;
+    $('statOnline').textContent=online;$('statOffRoute').textContent=off;$('statTrips').textContent=trips;
+  }
+
+  function setupRouteSelector(){
+    $('routeSelect').addEventListener('change',()=>{
+      const key=$('routeSelect').value;
+      if(!key)return;
+      selectedFamilyKey=key;
+      const f=buildFamilies().find(x=>x.key===key);
+      if(f)chooseDirection(f);
+    });
+  }
+
+  async function loadRoutes(){
+    const {data,error}=await db.from('routes').select('id,route_name,direction,region,line_number,line_code,variant,origin,destination,road_geometry,route_points,road_distance_meters,road_duration_seconds,active');
+    if(error)throw error;routes=data||[];routes.sort((a,b)=>{const ma=lineToken(a).match(/(\d+)([AB])?$/),mb=lineToken(b).match(/(\d+)([AB])?$/);const na=ma?Number(ma[1]):9999,nb=mb?Number(mb[1]):9999;if(na!==nb)return na-nb;const va=ma?.[2]==='B'?1:0,vb=mb?.[2]==='B'?1:0;return va-vb||displayName(a).localeCompare(displayName(b));});
+    buildRoutePanel();drawRoutes();
+  }
+
+  function subscribeToRouteChanges(){
+    try{db.channel('route-builder-route-sync').on('postgres_changes',{event:'*',schema:'public',table:'routes'},()=>loadRoutes()).subscribe();}
+    catch(e){console.warn('Realtime route subscription unavailable:',e)}
+  }
+
+  async function loadBuses(){
+    const {data,error}=await db.from('bus_locations').select('*').order('bus_id');
+    if(error)throw error;buses=data||[];renderBuses();renderAlerts();redrawBusMarkersForSelection();applyRouteSelection();$('updated').textContent='Updated '+formatTime(new Date().toISOString());
+  }
+
+  async function start(){
+    setupRouteSelector();
+    try{initMap();}catch(e){console.error(e);showMapError(e.message);$('updated').textContent='Map error';return}
+    try{await loadRoutes();await loadBuses();clearMapError();}
+    catch(e){console.error(e);$('updated').textContent='Database error';showMapError('Could not load live data: '+(e.message||e));}
+    setInterval(async()=>{try{await loadRoutes();await loadBuses();clearMapError();}catch(e){console.error(e);showMapError('Live update error: '+(e.message||e));}},5000);
+  }
+
+  window.addEventListener('resize',()=>map&&map.invalidateSize());
+  start();
+    subscribeToRouteChanges();
+})();
+</script>
+</body>
+</html>
