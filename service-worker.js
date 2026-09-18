@@ -1,6 +1,6 @@
-const CACHE_NAME = "sxm-bus-v1";
+const CACHE_NAME = "sxm-bus-v2";
 
-const APP_FILES = [
+const APP_SHELL = [
   "./",
   "./index.html",
   "./manifest.json"
@@ -8,11 +8,13 @@ const APP_FILES = [
 
 self.addEventListener("install", event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(APP_FILES))
+    caches.open(CACHE_NAME)
+      .then(cache => cache.addAll(APP_SHELL))
   );
 
   self.skipWaiting();
 });
+
 
 self.addEventListener("activate", event => {
   event.waitUntil(
@@ -28,9 +30,72 @@ self.addEventListener("activate", event => {
   self.clients.claim();
 });
 
+
 self.addEventListener("fetch", event => {
+
+  const request = event.request;
+
+  // Only handle GET requests
+  if (request.method !== "GET") {
+    return;
+  }
+
+  const url = new URL(request.url);
+
+  // NEVER cache Supabase/API/live data.
+  // Live bus information must always come from the network.
+  if (
+    url.hostname.includes("supabase.co") ||
+    url.pathname.includes("/rest/") ||
+    url.pathname.includes("/realtime/")
+  ) {
+    return;
+  }
+
   event.respondWith(
-    fetch(event.request)
-      .catch(() => caches.match(event.request))
+
+    fetch(request)
+      .then(response => {
+
+        // Only cache successful responses.
+        if (response && response.ok) {
+
+          const copy = response.clone();
+
+          caches.open(CACHE_NAME)
+            .then(cache => {
+              cache.put(request, copy);
+            });
+        }
+
+        return response;
+      })
+
+      .catch(() => {
+
+        return caches.match(request)
+          .then(cachedResponse => {
+
+            if (cachedResponse) {
+              return cachedResponse;
+            }
+
+            // Always return a valid Response.
+            return new Response(
+              "SXM Bus is temporarily offline.",
+              {
+                status: 503,
+                statusText: "Service Unavailable",
+                headers: {
+                  "Content-Type": "text/plain"
+                }
+              }
+            );
+
+          });
+
+      })
+
   );
+
 });
