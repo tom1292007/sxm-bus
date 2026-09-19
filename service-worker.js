@@ -1,67 +1,183 @@
-const CACHE_NAME = 'sxm-bus-shell-v5';
+const CACHE_NAME = 'sxm-bus-shell-v6';
 
-const SHELL = [
+const APP_SHELL = [
   './',
   './index.html',
   './manifest.json',
+  './sxm-splash-logo.webp',
   './icon-192.png',
   './icon-512.png',
   './apple-touch-icon.png',
-  './driver.html?v=5',
-  './driver-manifest.json?v=5',
-  './driver-icon-192.png?v=5',
-  './driver-icon-512.png?v=5',
-  './driver-apple-touch-icon.png?v=5'
+
+  // Driver app
+  './driver.html',
+  './driver-manifest.json',
+  './driver-icon-192.png',
+  './driver-icon-512.png',
+  './driver-apple-touch-icon.png'
 ];
 
+
+// ==========================================================
+// INSTALL
+// ==========================================================
+
 self.addEventListener('install', event => {
+
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(SHELL))
+    caches.open(CACHE_NAME).then(cache => {
+      return cache.addAll(APP_SHELL);
+    })
   );
+
+  // Activate the new service worker immediately
   self.skipWaiting();
 });
 
+
+// ==========================================================
+// ACTIVATE
+// ==========================================================
+
 self.addEventListener('activate', event => {
+
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
+
+    caches.keys().then(keys => {
+
+      return Promise.all(
+
         keys
           .filter(key => key !== CACHE_NAME)
           .map(key => caches.delete(key))
-      )
-    )
+
+      );
+
+    }).then(() => {
+
+      // Take control of all currently open pages
+      return self.clients.claim();
+
+    })
+
   );
-  self.clients.claim();
+
 });
 
+
+// ==========================================================
+// FETCH
+// ==========================================================
+
 self.addEventListener('fetch', event => {
-  const req = event.request;
-  if (req.method !== 'GET') return;
+
+  const request = event.request;
+
+  // We only handle GET requests
+  if (request.method !== 'GET') {
+    return;
+  }
+
+  const url = new URL(request.url);
+
+
+  // ========================================================
+  // DO NOT CACHE LIVE DATA
+  // ========================================================
+
+  // Supabase must always remain live.
+  // OpenStreetMap tiles should also remain network-first.
+  if (
+    url.hostname.includes('supabase.co') ||
+    url.hostname.includes('openstreetmap.org') ||
+    url.pathname.includes('/rest/') ||
+    url.pathname.includes('/realtime/')
+  ) {
+    return;
+  }
+
+
+  // ========================================================
+  // NAVIGATION REQUEST
+  // ========================================================
+
+  // This handles opening the PWA when online or offline.
+  if (request.mode === 'navigate') {
+
+    event.respondWith(
+
+      fetch(request)
+
+        .then(response => {
+
+          if (response && response.ok) {
+
+            const copy = response.clone();
+
+            caches.open(CACHE_NAME).then(cache => {
+
+              cache.put('./index.html', copy);
+
+            });
+
+          }
+
+          return response;
+
+        })
+
+        .catch(() => {
+
+          // If the internet is unavailable,
+          // open the cached passenger app.
+          return caches.match('./index.html');
+
+        })
+
+    );
+
+    return;
+  }
+
+
+  // ========================================================
+  // NORMAL STATIC FILE REQUEST
+  // ========================================================
 
   event.respondWith(
-    fetch(req)
+
+    fetch(request)
+
       .then(response => {
+
         if (
           response &&
           response.ok &&
-          new URL(req.url).origin === self.location.origin
+          url.origin === self.location.origin
         ) {
+
           const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(req, copy));
+
+          caches.open(CACHE_NAME).then(cache => {
+
+            cache.put(request, copy);
+
+          });
+
         }
+
         return response;
+
       })
-      .catch(() =>
-        caches.match(req).then(cached => {
-          if (cached) return cached;
 
-          const path = new URL(req.url).pathname;
-          if (path.endsWith('/driver.html')) {
-            return caches.match('./driver.html?v=5');
-          }
+      .catch(() => {
 
-          return caches.match('./index.html');
-        })
-      )
+        // Network failed.
+        // Try the cached version.
+        return caches.match(request);
+
+      })
+
   );
+
 });
